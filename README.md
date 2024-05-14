@@ -15,6 +15,15 @@ $ git clone https://github.com/radiolevity/threepio.git
 $ cd threepio
 ```
 
+Before installing Python dependencies, (namely PyQt5), Qt5 is required on your system.
+
+Use your favorite package manager and install Qt5 if you don't have it.
+
+i.e.
+```
+$ brew install Qt5
+```
+
 Threepio requires Python 3.9.x. Using a virtual environment is strongly recommended.
 ```
 $ python --version
