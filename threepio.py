@@ -182,8 +182,6 @@ class Threepio(QtWidgets.QMainWindow):
 
         # If data was available above, save it
         if tars_datum is not None and minitars_datum is not None:
-            assert tars_datum
-            assert minitars_datum
             self.current_dec = self.dec_calc.calculate_declination(minitars_datum)
             self.current_data_point = DataPoint(  # Create data point
                 sidereal_timestamp,  # RA
