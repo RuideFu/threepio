@@ -14,4 +14,4 @@ class Comm(Enum):
     SEND_TEL_NORTH = auto()
     SEND_TEL_SOUTH = auto()
     END_SEND_TEL = auto()
-    FINISH_SWEEP = auto()
+    FINISHING_SWEEP = auto()

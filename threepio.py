@@ -254,7 +254,7 @@ class Threepio(QtWidgets.QMainWindow):
                     callback=callback,
                 )
 
-        print(transmission)
+        # print(transmission)
 
         should_beep = False
         if transmission is Comm.START_WAIT:
@@ -277,7 +277,7 @@ class Threepio(QtWidgets.QMainWindow):
             self.message(
                 f"Taking {obs_type.name.lower()} data!!!", beep=False, log=False
             )
-        elif transmission is Comm.FINISH_SWEEP:
+        elif transmission is Comm.FINISHING_SWEEP:
             self.message("Finishing last sweep!!!", beep=False)
         elif transmission is Comm.BEEP:
             should_beep = True
@@ -286,6 +286,9 @@ class Threepio(QtWidgets.QMainWindow):
         elif transmission is Comm.NO_ACTION:
             pass
         
+        if should_beep:
+            self.beep(message="update_data")
+
         if should_beep:
             self.beep(message="update_data")
 
@@ -364,6 +367,9 @@ class Threepio(QtWidgets.QMainWindow):
         self.update_fps()
         self.update_console()
         self.update_voltage()
+
+        with open("time-experiment", "a") as file:
+            print(f"{self.clock.get_time()},{self.clock.get_sidereal_seconds()}", end="\n", file=file)
 
     def update_progress_bar(self):
         try:
