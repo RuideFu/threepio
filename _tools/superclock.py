@@ -1,16 +1,16 @@
-"""clock for keeping track of the time and running functions at different intervals"""
+"""Clock for keeping track of the time and running functions at different intervals"""
 
 from __future__ import annotations
 from math import floor
 import time
 import datetime
-from typing import Callable, Optional
+from typing import Callable
 from astropy.time import Time
 from astropy.coordinates import EarthLocation
 
-SIDEREAL = 1.00273790935  # the number of sidereal seconds per second
-GB_LATITUDE = 38.437235  # north
-GB_LONGITUDE = -79.839835  # west (so negative)
+SIDEREAL = 1.00273790935  # The number of sidereal seconds per second
+GB_LATITUDE = 38.437235  # North
+GB_LONGITUDE = -79.839835  # West (so negative)
 
 
 class SuperClock:
@@ -18,9 +18,6 @@ class SuperClock:
 
     def __init__(self):
         self.timers = []
-        self.starting_epoch_time: float = 0.0
-        # time, in seconds, since the sidereal midnight before last calibration
-        self.starting_sidereal_time = 0.0
 
         loc = EarthLocation(lat=GB_LATITUDE, lon=GB_LONGITUDE)
         t = Time(time.time(), format="unix", scale="utc", location=loc)
@@ -30,6 +27,10 @@ class SuperClock:
     def calibrate_sidereal_time(self, starting_sidereal_time: float):
         current_time = time.time()
         corrected_sidereal_time = (starting_sidereal_time) % 86400
+
+        self.starting_epoch_time: float = 0.0
+        # Time, in seconds, since the sidereal midnight before last calibration
+        self.starting_sidereal_time = 0.0
 
         self.set_starting_time(current_time)
         self.set_starting_sidereal_time(corrected_sidereal_time)
@@ -50,7 +51,7 @@ class SuperClock:
 
     @staticmethod
     def get_time_slug() -> str:
-        """get timestamp suitable for file naming"""
+        """Get timestamp suitable for file naming"""
         return "{:%Y.%m.%d-%H.%M}".format(datetime.datetime(*time.localtime()[:5]))
 
     @staticmethod
@@ -60,7 +61,7 @@ class SuperClock:
 
     @staticmethod
     def deformat_time_string(time_string: str) -> float:
-        """convert a string of the form HH:MM:SS to a float of seconds"""
+        """Convert a string of the form HH:MM:SS to a float of seconds"""
         hours, minutes, seconds = map(float, time_string.split(":"))
         return hours * 3600 + minutes * 60 + seconds
     
@@ -69,18 +70,17 @@ class SuperClock:
         return hours * 3600
     
     def run_timers(self) -> None:
-        """run every timer that is due to run"""
+        """Run every timer that is due to run"""
         for timer in self.timers:
             timer.run_if_appropriate()
 
     def reset_all_timer_anchors(self) -> None:
-        """set offset of all timers to 0"""
         current_time = time.time()
         for timer in self.timers:
             timer.anchor_time = current_time
 
     def add_timer(self, period: int, callback, name="", log=False) -> Timer:
-        """set a timer to call a function periodically"""
+        """Set a timer to call a function periodically"""
         new_timer = Timer(period, callback, name, log)
         self.timers.append(new_timer)
         return new_timer
@@ -89,13 +89,13 @@ class SuperClock:
         self.starting_sidereal_time = sidereal_time
 
     def set_starting_time(self, epoch_time: float) -> None:
-        """set starting time and anchor time to specified time"""
+        """Set starting time and anchor time to specified time"""
         self.starting_epoch_time = epoch_time
         self.anchor_time = epoch_time
         self.reset_all_timer_anchors()
 
     def reset_anchor_time(self) -> None:
-        """set anchor time to current time"""
+        """Set anchor time to current time"""
         self.anchor_time = time.time()
         self.reset_all_timer_anchors()
 
@@ -103,27 +103,27 @@ class SuperClock:
         return time.time() - self.starting_epoch_time
 
     def get_starting_epoch_time(self) -> float:
-        """solar time of last calibration as epoch date"""
+        """Solar time of last calibration as epoch date"""
         return self.starting_epoch_time
 
     def get_starting_sidereal_time(self) -> float:
-        """sidereal time of last calibration in seconds"""
+        """Sidereal time of last calibration in seconds"""
         return self.starting_sidereal_time
     
     def get_sidereal_seconds(self) -> float:
-        """sidereal seconds since the sidereal midnight before calibration"""
+        """Sidereal seconds since the sidereal midnight before calibration"""
         return self.starting_sidereal_time + SIDEREAL * self.get_elapsed_time()
 
     def get_sidereal_tuple(self) -> tuple:
-        """return an hours, minutes, seconds tuple of local sidereal time"""
+        """Return an hours, minutes, seconds tuple of local sidereal time"""
         current_sidereal_time = self.get_sidereal_seconds()
         minutes, seconds = divmod(current_sidereal_time, 60)
         hours, minutes = divmod(minutes, 60)
         hours = hours % 24
-        return hours, minutes, seconds
+        return int(hours), int(minutes), int(seconds)
 
     def get_formatted_sidereal_time(self) -> str:
-        """return a string of HH:MM:SS formatted local sidereal time"""
+        """Return a string of HH:MM:SS formatted local sidereal time"""
         hours, minutes, seconds = self.get_sidereal_tuple()
         return f"{hours:02.0f}:{minutes:02.0f}:{seconds:02.0f}"
 
@@ -136,12 +136,12 @@ class Timer:
         callback (Callable[[], None]): function to call when the timer runs
         name (str): name of the timer
         log (bool): whether to print the timer's name and status when it runs
-        
     """
 
     def __init__(self, period: int, callback: Callable[[], None], name: str, log: bool):
         self.period = period  # ms
         self.callback = callback
+        # self.offset = 0
         self.anchor_time: float = time.time()
         self.name = name
         self.log = log
@@ -154,8 +154,11 @@ class Timer:
             return False
 
         current_time = time.time()
-        if current_time - self.anchor_time >= (self.period / 1000):
-            self.anchor_time = current_time
+        elapsed_periods, extra_time = divmod(current_time - self.anchor_time, self.period/ 1000)
+        if elapsed_periods > 0:
+            if self.log or True:
+                print(f"{self.name}: {self.anchor_time=}, {current_time=}, {self.period=}")
+            self.anchor_time = current_time - extra_time
             self.run()
             return True
         return False

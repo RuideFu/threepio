@@ -1,8 +1,8 @@
-"""dialogue box for alerting the user about something"""
+"""Dialogue box for alerting the user about something"""
 
 from PyQt5.QtWidgets import QDialog, QWidget
 from PyQt5.QtCore import Qt
-from layouts import alert_ui  # compiled PyQt dialogue ui
+from layouts import alert_ui
 
 
 class AlertDialog(QDialog):
@@ -14,7 +14,8 @@ class AlertDialog(QDialog):
         # self.setModal(False)
         self.ui.setupUi(self)
 
-        # hide the close/minimize/fullscreen buttons and make window always on top
+        # Hide the close/minimize/fullscreen buttons and make window always on top
+        # noinspection PyTypeChecker
         self.setWindowFlags(
             Qt.Window
             | Qt.WindowTitleHint

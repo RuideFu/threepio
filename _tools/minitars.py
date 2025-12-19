@@ -2,8 +2,6 @@
 Small version of Tars, meant to be used with the Arduino declinometer as opposed to the
 DataQ.
 """
-from typing import Optional
-
 import serial
 from .myserial import MySerial
 import serial.tools.list_ports
@@ -25,7 +23,7 @@ def discovery():
 
 
 class MiniTars:
-    def __init__(self, parent=None, device=None):
+    def __init__(self, parent, device=None):
         self.parent = parent
         self.testing = True
         self.acquiring = False
@@ -45,7 +43,7 @@ class MiniTars:
             self.ser.reset_input_buffer()
             self.acquiring = False
 
-    def read_one(self) -> Optional[float]:
+    def _read_one(self) -> float | None:
         """
         This reads one datapoint from the buffer.
         """
@@ -56,78 +54,55 @@ class MiniTars:
         else:
             return self.random_data()
 
-    def read_latest(self) -> float:
+    def read_latest(self) -> float | None:
         """
         This function reads the last datapoint from the buffer and clears the buffer.
         Use this as a real-time sampling method.
         """
-        if not self.testing:
-            current = self.read_one()
-            latest = None
-            while current is not None:
-                latest = current
-                current = self.read_one()
-            return latest
-        else:
+        if self.testing:
             return self.random_data()
+        current = self._read_one()
+        latest = None
+        while current is not None:
+            latest = current
+            current = self._read_one()
+        return latest
 
     # Helpers
 
     def in_waiting(self) -> int:
-        if not self.testing:
-            return self.ser.in_waiting
+        if self.testing:
+            return 0
+        return self.ser.in_waiting
 
-    def buffer_read(self) -> Optional[float]:
-        """read angle from serial buffer"""
-        if not self.testing:
-            if self.in_waiting() < 1:
-                return None
-            # TODO: clean up
-            # print("start")
-            # print("get-360".encode("ascii"))
-            # self.ser.write(bytes("get-360".encode("ascii")))
-            # line = self.ser.read(size=8)
-            line = self.ser.read_until(
-                expected="\r".encode("ascii")
-            )  # read a byte string TODO: encoding necessary?
-            # print(line.decode())
-            # print(f"minitars: {line}")
-            try:
-                # print(f"minitars: {float(line.decode())}")
-                return float(line.decode())
-            except (UnicodeDecodeError, ValueError):
-                pass
+    def buffer_read(self) -> float | None:
+        """Read angle from serial buffer"""
+        if self.testing:
             return None
+        if self.in_waiting() < 1:
+            print("NO DATA IN QUEUE!")
+            return None
+        # TODO: Clean this up.
+        # print("start")
+        # print("get-360".encode("ascii"))
+        # self.ser.write(bytes("get-360".encode("ascii")))
+        # line = self.ser.read(size=8)
+        line = self.ser.read_until(
+            expected="\r".encode("ascii")
+        )  # read a byte string TODO: encoding necessary?
+        # print(line.decode())
+        # print(f"minitars: {line}")
+        try:
+            print(f"minitars: {float(line.decode())}")
+            return float(line.decode())
+        except (UnicodeDecodeError, ValueError):
+            pass
+        return None
 
     # Testing
 
     def random_data(self) -> float:
-        """for testing"""
+        """For testing"""
         if self.parent.ui.dec_auto_check_box.isChecked():
             return math.sin(time.time() / 2) * 100
         return float(self.parent.ui.declination_slider.value())
-
-
-def main():
-    declinometer = discovery()
-
-    while not declinometer:
-        print("No declinometer detected, retrying in 3 seconds.")
-        time.sleep(3)
-        declinometer = discovery()
-
-    print("Found a declinometer on", declinometer)
-    minitars = MiniTars(device=declinometer)
-
-    minitars.start()
-
-    while True:
-        data = minitars.read_latest()
-        # print(data)
-        if data is not None:
-            print(minitars.testing)
-            print(data)
-
-
-if __name__ == "__main__":
-    main()

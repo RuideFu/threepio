@@ -1,4 +1,4 @@
-# threepio 🤖
+# Threepio 🤖
 
 The new data acquisition system for the 40-foot radio telescope at the [Green Bank Observatory](https://greenbankobservatory.org/). This software is part of the [ERIRA](https://www.danreichart.com/erira) program.
 
@@ -11,14 +11,14 @@ Threepio uses `PyQt5` for GUI and `pySerial` for communication to the data colle
 ### For Linux & macOS
 Clone the repo and `cd` into it.
 ```
-$ git clone https://github.com/radiolevity/threepio.git
+$ git clone https://github.com/finnjames/threepio.git
 $ cd threepio
 ```
 
-Threepio requires Python 3.9.x. Using a virtual environment is strongly recommended.
+Threepio requires Python 3.13.x. Using a virtual environment is strongly recommended.
 ```
 $ python --version
-Python 3.9.1
+Python 3.13.6
 $ python -m venv --upgrade-deps venv
 ```
 
@@ -40,14 +40,14 @@ Run
 ### For Windows
 Clone the repo and `cd` into it.
 ```
-$ git clone https://github.com/radiolevity/threepio.git
+$ git clone https://github.com/finnjames/threepio.git
 $ cd threepio
 ```
 
-Threepio requires Python 3.9.x. Using a virtual environment is strongly recommended.
+Threepio requires Python 3.13.x. Using a virtual environment is strongly recommended.
 ```
 $ python --version
-Python 3.9.1
+Python 3.13.6
 $ python -m venv --upgrade-deps venv
 ```
 

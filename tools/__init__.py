@@ -1,4 +1,4 @@
-"""package containing all random tools used by larger threepio"""
+"""Package for the tools used by Threepio."""
 from _tools.comm import Comm
 from _tools.datapoint import DataPoint
 from _tools.precious import MyPrecious
@@ -8,5 +8,8 @@ from _tools.logtask import LogTask
 from _tools.minitars import MiniTars
 from _tools.obsrecord import ObsRecord
 from _tools.alert import Alert
-from _tools.observation import Observation, Survey, Scan, Spectrum, ObsType
+from _tools.observation import Observation, ObsType
+from _tools.scan import Scan
+from _tools.survey import Survey
+from _tools.spectrum import Spectrum
 from _tools.deccalc import DecCalc
