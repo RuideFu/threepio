@@ -112,7 +112,6 @@ class Threepio(QtWidgets.QMainWindow):
         self.beep_sound.setVolume(0.5)
         # self.click_sound.play()
         self.last_beep_time = 0.0
-        self.tobeepornottobeep = False
 
         # alerts
         self.open_alert = None
@@ -257,8 +256,9 @@ class Threepio(QtWidgets.QMainWindow):
                     callback=callback,
                 )
 
-        print(transmission)
+        # print(transmission)
 
+        should_beep = False
         if transmission is Comm.START_WAIT:
             self.obs.next()
             self.message(f"Waiting for {obs_type.name.lower()} to begin...")
@@ -271,22 +271,25 @@ class Threepio(QtWidgets.QMainWindow):
             self.obs = None
         elif transmission is Comm.SEND_TEL_NORTH:
             self.message("Send telescope NORTH at max speed!!!", beep=False, log=False)
-            self.tobeepornottobeep = True
+            should_beep = True
         elif transmission is Comm.SEND_TEL_SOUTH:
             self.message("Send telescope SOUTH at max speed!!!", beep=False, log=False)
-            self.tobeepornottobeep = True
+            should_beep = True
         elif transmission is Comm.END_SEND_TEL:
             self.message(
                 f"Taking {obs_type.name.lower()} data!!!", beep=False, log=False
             )
-        elif transmission is Comm.FINISH_SWEEP:
+        elif transmission is Comm.FINISHING_SWEEP:
             self.message("Finishing last sweep!!!", beep=False)
         elif transmission is Comm.BEEP:
-            self.tobeepornottobeep = True
+            should_beep = True
         elif transmission is Comm.NEXT:
             self.obs.next()
         elif transmission is Comm.NO_ACTION:
             pass
+
+        if should_beep:
+            self.beep(message="update_data")
 
         self.previous_transmission = transmission
 
@@ -353,9 +356,6 @@ class Threepio(QtWidgets.QMainWindow):
 
     def update_gui(self):
         # current_time = self.clock.get_time()
-        if self.tobeepornottobeep:
-            self.beep(message="update_gui")
-            self.tobeepornottobeep = False
 
         self.ui.ra_value.setText(self.clock.get_formatted_sidereal_time())  # RA
         self.ui.dec_value.setText(f"{self.current_dec:.4f}°")  # dec
@@ -368,6 +368,9 @@ class Threepio(QtWidgets.QMainWindow):
         self.update_fps()
         self.update_console()
         self.update_voltage()
+
+        with open("time-experiment", "a") as file:
+            print(f"{self.clock.get_time()},{self.clock.get_sidereal_seconds()}", end="\n", file=file)
 
     def update_progress_bar(self):
         # T=start_RA
@@ -639,9 +642,10 @@ class Threepio(QtWidgets.QMainWindow):
 
     def beep(self, message=""):
         """message is for debugging"""
-        # self.beep_sound.play()
-        self.last_beep_time = time.time()
-        # print("beep!", message, time.time())
+        if time.time() - self.last_beep_time > .1:
+            self.beep_sound.play()
+            self.last_beep_time = time.time()
+            # print("beep!", message, time.time())
 
     def closeEvent(self, event):
         """override quit action to confirm before closing"""

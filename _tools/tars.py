@@ -149,7 +149,7 @@ class Tars:
                 return None
             buffer = self.ser.read(2)
             return (
-                Tars.RANGE_VOLT[channel >> 8]
+                5 + Tars.RANGE_VOLT[channel >> 8]
                 * int.from_bytes(buffer, byteorder="little", signed=True)
                 / 32768
             )
@@ -208,7 +208,8 @@ def main():
     while True:
         data = device.read_latest()
         if data is not None:
-            print(data)
+            pass
+            # print(data)
 
 
 if __name__ == "__main__":

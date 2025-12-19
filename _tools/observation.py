@@ -155,7 +155,7 @@ class Observation:
                 Comm.SEND_TEL_NORTH,
                 Comm.SEND_TEL_SOUTH,
             ]:
-                return Comm.FINISH_SWEEP
+                return Comm.FINISHING_SWEEP
             else:
                 return Comm.START_CAL
         elif self.state == State.CAL_2:
@@ -267,7 +267,7 @@ class Observation:
     def write_data(self, point: DataPoint):
         # print(f"{point.timestamp}, dec: {point.dec}")
         self.write("%.2f" % point.timestamp)
-        self.write("%.2f" % point.dec)
+        self.write("%.4f" % point.dec)
         if self.composite:
             self.file_comp.write("%.4f" % point.a)
             self.file_comp.write("%.4f" % point.b)
@@ -298,9 +298,9 @@ class Scan(Observation):
         self.obs_type = ObsType.SCAN
 
     def set_files(self):
-        self.file_a = MyPrecious(self.name + "_a.md1")
-        self.file_b = MyPrecious(self.name + "_b.md1")
-        self.file_comp = MyPrecious(self.name + "_comp.md1")
+        self.file_a = MyPrecious(self.name + "_a.3po.md1")
+        self.file_b = MyPrecious(self.name + "_b.3po.md1")
+        self.file_comp = MyPrecious(self.name + "_comp.3po.md1")
 
     def data_logic(self, data_point):
         self.write_data(data_point)
@@ -319,9 +319,9 @@ class Survey(Observation):
         self.outside = True
 
     def set_files(self):
-        self.file_a = MyPrecious(self.name + "_a.md2")
-        self.file_b = MyPrecious(self.name + "_b.md2")
-        self.file_comp = MyPrecious(self.name + "_comp.md2")
+        self.file_a = MyPrecious(self.name + "_a.3po.md2")
+        self.file_b = MyPrecious(self.name + "_b.3po.md2")
+        self.file_comp = MyPrecious(self.name + "_comp.3po.md2")
 
     def data_logic(self, data_point):
         if data_point.dec < self.min_dec or data_point.dec > self.max_dec:
@@ -366,9 +366,9 @@ class Spectrum(Observation):
         super().set_data_time(data_start, data_start + 180)
 
     def set_files(self):
-        self.file_a = MyPrecious(self.name + "_a.md1")
-        self.file_b = MyPrecious(self.name + "_b.md1")
-        self.file_comp = MyPrecious(self.name + "_comp.md1")
+        self.file_a = MyPrecious(self.name + "_a.3po.md1")
+        self.file_b = MyPrecious(self.name + "_b.3po.md1")
+        self.file_comp = MyPrecious(self.name + "_comp.3po.md1")
 
     def data_logic(self, data_point):
         if self.freq_time is None:

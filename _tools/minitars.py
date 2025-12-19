@@ -93,7 +93,7 @@ class MiniTars:
             # print(line.decode())
             # print(f"minitars: {line}")
             try:
-                print(f"minitars: {float(line.decode())}")
+                # print(f"minitars: {float(line.decode())}")
                 return float(line.decode())
             except (UnicodeDecodeError, ValueError):
                 pass
