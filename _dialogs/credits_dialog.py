@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QDialog, QWidget
-from PyQt5.QtGui import QPixmap
+from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtGui import QPixmap
 from layouts import credits_ui
 
 

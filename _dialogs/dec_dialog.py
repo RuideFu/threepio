@@ -1,12 +1,16 @@
 from enum import Enum
-from PyQt5.QtWidgets import QDialog, QWidget
-from layouts import dec_cal_ui
+
+from PySide6.QtWidgets import QDialog, QWidget
+
+from layouts import dec_cal_ui  # compiled PyQt dialogue ui
 from tools import DecCalc as dc
 from tools import MiniTars
+
 
 class NorthSouth(Enum):
     NORTH = 0
     SOUTH = 1
+
 
 class DecDialog(QDialog):
     """New observation dialogue window"""
@@ -55,13 +59,13 @@ class DecDialog(QDialog):
             self.step = -dc.STEP
         self.data = self.get_empty_data()
         self.update_labels()
-    
+
     def get_dec_range(self):
         return range(self.starting_dec, self.ending_dec + self.step, self.step)
     
     def get_empty_data(self) -> dict[float, float | None]:
         return {key: None for key in self.get_dec_range()}
-    
+
     def handle_record(self):
         self.threepio.beep(message="DecDialog.handle_record")
 
@@ -94,14 +98,14 @@ class DecDialog(QDialog):
             self.threepio.log(f"Dec cal failed: {e.__str__()}")
         finally:
             self.close()
-    
+
     def complete_calibration(self):
         self.validate_data(allow_incomplete=False)
 
         # Copy over the current file to the backup file
         try:
             with open(self.CAL_FILENAME) as f, open(
-                self.CAL_BACKUP_FILENAME, "w+"
+                    self.CAL_BACKUP_FILENAME, "w+"
             ) as b:
                 for line in f:
                     b.write(line)
@@ -114,7 +118,7 @@ class DecDialog(QDialog):
                 write_str += (f"{self.data[dec]}\n")
             f.write(write_str)
 
-    def validate_data(self, allow_incomplete = True):
+    def validate_data(self, allow_incomplete=True):
         decs_to_test = self.get_dec_range()
         if allow_incomplete:
             decs_to_test = list(filter(lambda a: self.data[a] is not None, decs_to_test))
@@ -154,7 +158,7 @@ class DecDialog(QDialog):
         elif new_dec == self.starting_dec:
             # Re-enable N/S choice if first
             self.ui.north_south_combo_box.setDisabled(False)
-    
+
     def allow_save(self):
         self.ui.save_button.setEnabled(True)
         self.confirmation_requested = True
@@ -177,8 +181,8 @@ class DecDialog(QDialog):
         data_string = ""
         for dec in dec_range:
             data_string += (
-                f"{self.data[dec]:.2f}"
-                if self.data[dec] is not None
-                else ""
-            ) + '\n'
+                               f"{self.data[dec]:.2f}"
+                               if self.data[dec] is not None
+                               else ""
+                           ) + '\n'
         self.ui.input_data_label.setText(data_string)

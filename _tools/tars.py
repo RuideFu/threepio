@@ -50,7 +50,7 @@ class Tars:
 
     def __init__(self, parent, device=None):
         self.parent = parent
-        
+
         self.testing = device is None
         if self.testing:
             self.parent.log("DataQ not found, simulating data")
@@ -85,6 +85,7 @@ class Tars:
         This reads one datapoint from the buffer. Each datapoint has three channels:
         channel 0: telescope channel A
         channel 1: telescope channel B
+        channel 2: declinometer
         """
         if self.testing:
             return self.random_data()
