@@ -148,11 +148,12 @@ class Tars:
             if self.in_waiting() < 2:
                 return None
             buffer = self.ser.read(2)
+            # convert negative voltage to positive. * -1 won't do the trick because complement is needed!
             return (
-                Tars.RANGE_VOLT[channel >> 8]
+                5 + (Tars.RANGE_VOLT[channel >> 8]
                 * int.from_bytes(buffer, byteorder="little", signed=True)
-                / 32768
-            )
+                / 32768)
+            ) 
 
     # Testing
 

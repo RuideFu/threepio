@@ -2,8 +2,8 @@
 import time
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QWidget
-from PyQt5.QtCore import Qt, QTime
+from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtCore import Qt, QTime
 from layouts import obs_ui  # compiled PyQt dialogue ui
 from tools import Alert, SuperClock, ObsType, Observation, ObsRecord
 

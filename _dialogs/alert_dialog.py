@@ -1,7 +1,7 @@
 """dialogue box for alerting the user about something"""
 
-from PyQt5.QtWidgets import QDialog, QWidget
-from PyQt5.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtCore import Qt
 from layouts import alert_ui  # compiled PyQt dialogue ui
 
 

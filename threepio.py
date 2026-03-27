@@ -4,7 +4,7 @@ from functools import reduce
 from typing import Callable
 from math import floor
 
-from PyQt5 import QtChart, QtCore, QtGui, QtWidgets, QtMultimedia
+from PySide6 import QtWidgets, QtCore, QtGui, QtMultimedia, QtCharts
 
 from dialogs import AlertDialog, CreditsDialog, DecDialog, ObsDialog, RADialog
 from layouts import threepio_ui, quit_ui
@@ -48,7 +48,7 @@ class Threepio(QtWidgets.QMainWindow):
         TESTING = 1
 
     def __init__(self):
-        QtWidgets.QWidget.__init__(self)
+        QtWidgets.QMainWindow.__init__(self)
 
         # use main_ui for window setup
         self.ui = threepio_ui.Ui_MainWindow()
@@ -74,10 +74,10 @@ class Threepio(QtWidgets.QMainWindow):
         self.stripchart_display_seconds = 8
         self.should_clear_stripchart = False
         self.channel_visibility = (True, True)
-        self.stripchart_series_a = QtChart.QLineSeries()
-        self.stripchart_series_b = QtChart.QLineSeries()
-        self.axis_y = QtChart.QValueAxis()
-        self.chart = QtChart.QChart()
+        self.stripchart_series_a = QtCharts.QLineSeries()
+        self.stripchart_series_b = QtCharts.QLineSeries()
+        self.axis_y = QtCharts.QValueAxis()
+        self.chart = QtCharts.QChart()
         self.ui.stripchart.setRenderHint(QtGui.QPainter.Antialiasing)
         self.initialize_stripchart()  # should this include more of the above?
 
@@ -494,7 +494,7 @@ class Threepio(QtWidgets.QMainWindow):
                 pen = QtGui.QPen(QtGui.QColor(0, 0, 0, 0))
             self.stripchart_series_b.setPen(pen)
 
-            axis_y = QtChart.QValueAxis()
+            axis_y = QtCharts.QValueAxis()
             axis_y.setMin(oldest_y)
             axis_y.setMax(current_sideral_seconds)
             axis_y.setVisible(False)
@@ -617,8 +617,8 @@ class Threepio(QtWidgets.QMainWindow):
         new_thread.start()
 
     class AlertWorker(QtCore.QObject):
-        finished = QtCore.pyqtSignal()
-        progress = QtCore.pyqtSignal(int)
+        finished = QtCore.Signal()
+        progress = QtCore.Signal(int)
 
         def __init__(self, threepio):
             super().__init__()

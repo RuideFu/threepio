@@ -93,7 +93,7 @@ class MiniTars:
             # print(line.decode())
             # print(f"minitars: {line}")
             try:
-                print(f"minitars: {float(line.decode())}")
+                # print(f"minitars: {float(line.decode())}")
                 return float(line.decode())
             except (UnicodeDecodeError, ValueError):
                 pass
@@ -122,11 +122,12 @@ def main():
     minitars.start()
 
     while True:
-        data = minitars.read_latest()
+        minitars.read_latest()
+        # data = minitars.read_latest()
         # print(data)
-        if data is not None:
-            print(minitars.testing)
-            print(data)
+        # if data is not None:
+            # print(minitars.testing)
+            # print(data)
 
 
 if __name__ == "__main__":

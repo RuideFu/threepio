@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QDialog, QWidget
-from PyQt5.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtCore import Qt
 from _tools.superclock import SuperClock
 from layouts import ra_cal_ui  # compiled PyQt dialogue ui
 

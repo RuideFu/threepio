@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from PyQt5 import QtCore
+from PySide6 import QtCore
 
 
 @dataclass(frozen=True)
