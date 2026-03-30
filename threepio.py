@@ -502,7 +502,10 @@ class Threepio(QtWidgets.QMainWindow):
             axis_y.setMax(current_sideral_seconds)
             axis_y.setVisible(False)
 
-            self.chart.setAxisY(axis_y)
+            # 1. Add the axis to the chart and specify it belongs on the left (or right)
+            self.chart.addAxis(axis_y, QtCore.Qt.AlignmentFlag.AlignLeft)
+
+            # 2. Attach the series to the axis (unchanged from Qt5)
             self.stripchart_series_a.attachAxis(axis_y)
             self.stripchart_series_b.attachAxis(axis_y)
 
