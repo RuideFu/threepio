@@ -592,6 +592,56 @@
             </layout>
            </widget>
           </item>
+          <item row="1" column="0" colspan="4">
+           <layout class="QHBoxLayout" name="horizontalLayout_4">
+            <item>
+             <widget class="QCheckBox" name="stripchart_dynamic_scale_checkbox">
+              <property name="text">
+               <string>Dynamic Scale</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="stripchart_max_voltage_slider">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>15</number>
+              </property>
+              <property name="value">
+               <number>5</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="tickPosition">
+               <enum>QSlider::TicksBelow</enum>
+              </property>
+              <property name="tickInterval">
+               <number>1</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="stripchart_max_voltage_value_label">
+              <property name="text">
+               <string>5V</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="stripchart_grid_checkbox">
+              <property name="text">
+               <string>Grid</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
           <item row="3" column="0" colspan="4">
            <widget class="QFrame" name="frame">
             <layout class="QHBoxLayout" name="horizontalLayout">

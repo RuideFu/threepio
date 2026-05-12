@@ -41,3 +41,9 @@ Safety Notes
 - Be careful with code that touches serial devices, calibration files, or files under `data/`.
 - Prefer non-destructive reads when investigating hardware-facing code.
 - Keep `.gitignore` entries for virtual environments, generated runtime data, and local IDE files intact.
+
+Recent Agent Update (2026-05-12)
+- Implemented strip chart upgrades described in `.agent/strip-chart-upgrades.md`:
+  - Added dynamic scale toggle, manual max-voltage slider (1-15V), and grid toggle controls.
+  - Added shared dynamic voltage scaling across both strip chart channels using a symmetric range.
+  - Refactored strip chart axis usage to persistent chart axes updated in place.

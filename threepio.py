@@ -78,6 +78,11 @@ class Threepio(QtWidgets.QMainWindow):
         self.channel_visibility = (True, True)
         self.stripchart_series_a = QtCharts.QLineSeries()
         self.stripchart_series_b = QtCharts.QLineSeries()
+        self.stripchart_dynamic_scale_enabled = True
+        self.stripchart_grid_enabled = False
+        self.stripchart_manual_max_voltage = 5.0
+        self.stripchart_min_voltage_range = 1.0
+        self.axis_x = QtCharts.QValueAxis()
         self.axis_y = QtCharts.QValueAxis()
         self.chart = QtCharts.QChart()
         self.ui.stripchart.setRenderHint(QtGui.QPainter.Antialiasing)
@@ -89,6 +94,13 @@ class Threepio(QtWidgets.QMainWindow):
         self.ui.stripchart_speed_slider.valueChanged.connect(
             self.update_stripchart_speed
         )
+        self.ui.stripchart_dynamic_scale_checkbox.toggled.connect(
+            self.toggle_stripchart_dynamic_scale
+        )
+        self.ui.stripchart_max_voltage_slider.valueChanged.connect(
+            self.update_stripchart_max_voltage
+        )
+        self.ui.stripchart_grid_checkbox.toggled.connect(self.toggle_stripchart_grid)
 
         self.ui.actionInfo.triggered.connect(self.handle_credits)
 
@@ -446,6 +458,15 @@ class Threepio(QtWidgets.QMainWindow):
     def initialize_stripchart(self):
         self.chart.addSeries(self.stripchart_series_b)
         self.chart.addSeries(self.stripchart_series_a)
+        self.chart.addAxis(self.axis_x, QtCore.Qt.AlignmentFlag.AlignBottom)
+        self.chart.addAxis(self.axis_y, QtCore.Qt.AlignmentFlag.AlignLeft)
+        self.stripchart_series_a.attachAxis(self.axis_x)
+        self.stripchart_series_b.attachAxis(self.axis_x)
+        self.stripchart_series_a.attachAxis(self.axis_y)
+        self.stripchart_series_b.attachAxis(self.axis_y)
+        self.update_stripchart_max_voltage()
+        self.toggle_stripchart_dynamic_scale()
+        self.toggle_stripchart_grid()
 
         legend = self.chart.legend()
         if legend is not None:
@@ -478,12 +499,6 @@ class Threepio(QtWidgets.QMainWindow):
                     i.removePoints(0, 2)
             self.should_clear_stripchart = False
 
-            # These lines are required to prevent a Qt error
-            self.chart.removeSeries(self.stripchart_series_b)
-            self.chart.removeSeries(self.stripchart_series_a)
-            self.chart.addSeries(self.stripchart_series_b)
-            self.chart.addSeries(self.stripchart_series_a)
-
             # Check for visibility
             if self.channel_visibility[0]:
                 pen = QtGui.QPen(QtGui.QColor(self.BLUE))
@@ -497,17 +512,10 @@ class Threepio(QtWidgets.QMainWindow):
                 pen = QtGui.QPen(QtGui.QColor(0, 0, 0, 0))
             self.stripchart_series_b.setPen(pen)
 
-            axis_y = QtCharts.QValueAxis()
-            axis_y.setMin(oldest_y)
-            axis_y.setMax(current_sideral_seconds)
-            axis_y.setVisible(False)
-
-            # 1. Add the axis to the chart and specify it belongs on the left (or right)
-            self.chart.addAxis(axis_y, QtCore.Qt.AlignmentFlag.AlignLeft)
-
-            # 2. Attach the series to the axis (unchanged from Qt5)
-            self.stripchart_series_a.attachAxis(axis_y)
-            self.stripchart_series_b.attachAxis(axis_y)
+            self.axis_y.setMin(oldest_y)
+            self.axis_y.setMax(current_sideral_seconds)
+            self.axis_y.setVisible(False)
+            self.update_stripchart_axes()
 
         except IndexError:  # No data yet
             pass
@@ -518,6 +526,47 @@ class Threepio(QtWidgets.QMainWindow):
 
     def clear_stripchart(self):
         self.should_clear_stripchart = True
+
+    def toggle_stripchart_dynamic_scale(self):
+        self.stripchart_dynamic_scale_enabled = (
+            self.ui.stripchart_dynamic_scale_checkbox.isChecked()
+        )
+        self.ui.stripchart_max_voltage_slider.setEnabled(
+            not self.stripchart_dynamic_scale_enabled
+        )
+        self.update_stripchart_axes()
+
+    def update_stripchart_max_voltage(self):
+        self.stripchart_manual_max_voltage = float(
+            self.ui.stripchart_max_voltage_slider.value()
+        )
+        self.ui.stripchart_max_voltage_value_label.setText(
+            f"{self.stripchart_manual_max_voltage:.0f}V"
+        )
+        self.update_stripchart_axes()
+
+    def toggle_stripchart_grid(self):
+        self.stripchart_grid_enabled = self.ui.stripchart_grid_checkbox.isChecked()
+        self.axis_x.setGridLineVisible(self.stripchart_grid_enabled)
+        self.axis_y.setGridLineVisible(self.stripchart_grid_enabled)
+
+    def calculate_stripchart_voltage_range(self):
+        max_abs_voltage = 0.0
+        for series in [self.stripchart_series_a, self.stripchart_series_b]:
+            for point in series.points():
+                max_abs_voltage = max(max_abs_voltage, abs(point.x()))
+        return max(max_abs_voltage, self.stripchart_min_voltage_range)
+
+    def update_stripchart_axes(self):
+        if self.stripchart_dynamic_scale_enabled:
+            max_voltage = self.calculate_stripchart_voltage_range()
+        else:
+            max_voltage = max(
+                self.stripchart_manual_max_voltage, self.stripchart_min_voltage_range
+            )
+        self.axis_x.setMin(-max_voltage)
+        self.axis_x.setMax(max_voltage)
+        self.axis_x.setVisible(False)
 
     def update_voltage(self):
         if len(self.data) > 0:
