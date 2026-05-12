@@ -1,41 +1,28 @@
-"""Clock for keeping track of the time and running functions at different intervals"""
+"""Clock model for sidereal/RA calculations."""
 
 from __future__ import annotations
-from math import floor
-import time
 import datetime
-from typing import Callable
+import time
 from astropy.time import Time
 from astropy.coordinates import EarthLocation
 
 SIDEREAL = 1.00273790935  # The number of sidereal seconds per second
 GB_LATITUDE = 38.437235  # North
 GB_LONGITUDE = -79.839835  # West (so negative)
+SIDEREAL_DAY_SECONDS = 86400
 
 
 class SuperClock:
-    """Clock object for encapsulation; keeps track of the time(tm)"""
+    """Sidereal clock model with optional manual calibration offset."""
 
     def __init__(self):
-        self.timers = []
-
-        loc = EarthLocation(lat=GB_LATITUDE, lon=GB_LONGITUDE)
-        t = Time(time.time(), format="unix", scale="utc", location=loc)
-        current_ra = SuperClock.hours_to_seconds(t.sidereal_time("apparent").value)
-        self.calibrate_sidereal_time(current_ra)
-
-    def calibrate_sidereal_time(self, starting_sidereal_time: float):
-        current_time = time.time()
-        corrected_sidereal_time = (starting_sidereal_time) % 86400
-
-        self.starting_epoch_time: float = 0.0
-        # Time, in seconds, since the sidereal midnight before last calibration
-        self.starting_sidereal_time = 0.0
-
-        self.set_starting_time(current_time)
-        self.set_starting_sidereal_time(corrected_sidereal_time)
-
-        print(f"{self.starting_sidereal_time=}, {self.starting_epoch_time=}")
+        self.manual_sidereal_offset_seconds = 0.0
+        self.calibration_epoch_time = 0.0
+        self.calibration_sidereal_seconds = 0.0
+        self.propagation_anchor_monotonic = 0.0
+        self.propagation_anchor_epoch_time = 0.0
+        self.propagation_anchor_sidereal_seconds = 0.0
+        self.resync_from_astropy()
 
     @staticmethod
     def get_time() -> float:
@@ -51,129 +38,59 @@ class SuperClock:
 
     @staticmethod
     def get_time_slug() -> str:
-        """Get timestamp suitable for file naming"""
         return "{:%Y.%m.%d-%H.%M}".format(datetime.datetime(*time.localtime()[:5]))
 
     @staticmethod
     def get_time_until(destination_time) -> float:
-        """Positive means it already happened, negative means it will happen"""
         return time.time() - destination_time
 
     @staticmethod
     def deformat_time_string(time_string: str) -> float:
-        """Convert a string of the form HH:MM:SS to a float of seconds"""
         hours, minutes, seconds = map(float, time_string.split(":"))
         return hours * 3600 + minutes * 60 + seconds
-    
+
     @staticmethod
     def hours_to_seconds(hours: float) -> float:
         return hours * 3600
-    
-    def run_timers(self) -> None:
-        """Run every timer that is due to run"""
-        for timer in self.timers:
-            timer.run_if_appropriate()
 
-    def reset_all_timer_anchors(self) -> None:
-        current_time = time.time()
-        for timer in self.timers:
-            timer.anchor_time = current_time
+    def _sidereal_seconds_from_astropy(self, epoch_time: float) -> float:
+        loc = EarthLocation(lat=GB_LATITUDE, lon=GB_LONGITUDE)
+        t = Time(epoch_time, format="unix", scale="utc", location=loc)
+        return SuperClock.hours_to_seconds(t.sidereal_time("apparent").value) % SIDEREAL_DAY_SECONDS
 
-    def add_timer(self, period: int, callback, name="", log=False) -> Timer:
-        """Set a timer to call a function periodically"""
-        new_timer = Timer(period, callback, name, log)
-        self.timers.append(new_timer)
-        return new_timer
+    def calibrate_sidereal_time(self, sidereal_seconds: float) -> None:
+        astronomical_truth = self._sidereal_seconds_from_astropy(time.time())
+        self.manual_sidereal_offset_seconds = (sidereal_seconds - astronomical_truth) % SIDEREAL_DAY_SECONDS
+        self.resync_from_astropy()
 
-    def set_starting_sidereal_time(self, sidereal_time: float) -> None:
-        self.starting_sidereal_time = sidereal_time
+    def resync_from_astropy(self) -> None:
+        epoch_time = time.time()
+        monotonic_time = time.monotonic()
+        astronomical_sidereal = self._sidereal_seconds_from_astropy(epoch_time)
+        corrected_sidereal = (astronomical_sidereal + self.manual_sidereal_offset_seconds) % SIDEREAL_DAY_SECONDS
 
-    def set_starting_time(self, epoch_time: float) -> None:
-        """Set starting time and anchor time to specified time"""
-        self.starting_epoch_time = epoch_time
-        self.anchor_time = epoch_time
-        self.reset_all_timer_anchors()
+        self.calibration_epoch_time = epoch_time
+        self.calibration_sidereal_seconds = corrected_sidereal
+        self.propagation_anchor_epoch_time = epoch_time
+        self.propagation_anchor_monotonic = monotonic_time
+        self.propagation_anchor_sidereal_seconds = corrected_sidereal
 
-    def reset_anchor_time(self) -> None:
-        """Set anchor time to current time"""
-        self.anchor_time = time.time()
-        self.reset_all_timer_anchors()
-
-    def get_elapsed_time(self) -> float:
-        return time.time() - self.starting_epoch_time
-
-    def get_starting_epoch_time(self) -> float:
-        """Solar time of last calibration as epoch date"""
-        return self.starting_epoch_time
-
-    def get_starting_sidereal_time(self) -> float:
-        """Sidereal time of last calibration in seconds"""
-        return self.starting_sidereal_time
-    
     def get_sidereal_seconds(self) -> float:
-        """Sidereal seconds since the sidereal midnight before calibration"""
-        return self.starting_sidereal_time + SIDEREAL * self.get_elapsed_time()
+        elapsed_solar = time.monotonic() - self.propagation_anchor_monotonic
+        return (self.propagation_anchor_sidereal_seconds + SIDEREAL * elapsed_solar) % SIDEREAL_DAY_SECONDS
 
-    def get_sidereal_tuple(self) -> tuple:
-        """Return an hours, minutes, seconds tuple of local sidereal time"""
+    def ra_to_epoch_time(self, ra_seconds: float) -> float:
+        current_sidereal = self.get_sidereal_seconds()
+        delta_sidereal = (ra_seconds - current_sidereal) % SIDEREAL_DAY_SECONDS
+        delta_solar = self.sidereal_to_solar(delta_sidereal)
+        return time.time() + delta_solar
+
+    def get_sidereal_tuple(self) -> tuple[int, int, int]:
         current_sidereal_time = self.get_sidereal_seconds()
         minutes, seconds = divmod(current_sidereal_time, 60)
         hours, minutes = divmod(minutes, 60)
-        hours = hours % 24
-        return int(hours), int(minutes), int(seconds)
+        return int(hours) % 24, int(minutes), int(seconds)
 
     def get_formatted_sidereal_time(self) -> str:
-        """Return a string of HH:MM:SS formatted local sidereal time"""
         hours, minutes, seconds = self.get_sidereal_tuple()
         return f"{hours:02.0f}:{minutes:02.0f}:{seconds:02.0f}"
-
-
-class Timer:
-    """A timer for syncing things that run at different, variable rates
-    
-    Args:
-        period (int): in milliseconds
-        callback (Callable[[], None]): function to call when the timer runs
-        name (str): name of the timer
-        log (bool): whether to print the timer's name and status when it runs
-    """
-
-    def __init__(self, period: int, callback: Callable[[], None], name: str, log: bool):
-        self.period = period  # ms
-        self.callback = callback
-        # self.offset = 0
-        self.anchor_time: float = time.time()
-        self.name = name
-        self.log = log
-
-    def run(self) -> None:
-        self.callback()
-
-    def run_if_appropriate(self) -> bool:
-        if self.period <= 0:
-            return False
-
-        current_time = time.time()
-        elapsed_periods, extra_time = divmod(current_time - self.anchor_time, self.period/ 1000)
-        if elapsed_periods > 0:
-            if self.log or True:
-                print(f"{self.name}: {self.anchor_time=}, {current_time=}, {self.period=}")
-            self.anchor_time = current_time - extra_time
-            self.run()
-            return True
-        return False
-
-    def set_period(self, new_period: int) -> None:
-        """
-        Args:
-            new_period (int): in milliseconds
-        """
-        if self.period != new_period:
-            self.anchor_time = time.time()
-        self.period = new_period
-
-    def cancel(self) -> None:
-        self.period = 0
-
-    def __repr__(self) -> str:
-        return f"Timer({self.period}ms, {self.callback})"

@@ -15,6 +15,7 @@ from tools import (
     Scan,
     Spectrum,
     SuperClock,
+    TimerManager,
     GB_LATITUDE,
     Tars,
     MiniTars,
@@ -69,6 +70,7 @@ class Threepio(QtWidgets.QMainWindow):
         stripchart_log_task = self.log(">>> Initializing...")
         # Clock
         self.clock = SuperClock()
+        self.scheduler = TimerManager()
 
         # Initialize stripchart
         self.stripchart_display_seconds = 8
@@ -155,8 +157,9 @@ class Threepio(QtWidgets.QMainWindow):
         self.timer.timeout.connect(self.tick)  # Do everything
         self.timer.start(self.BASE_PERIOD)  # Set refresh rate
         # Assign timers to functions meant to fire periodically
-        self.clock.add_timer(1000, self.update_gui, name="update_gui")
-        self.data_timer = self.clock.add_timer(1000,
+        self.scheduler.add_timer(1000, self.update_gui, name="update_gui")
+        self.scheduler.add_timer(60000, self.clock.resync_from_astropy, name="sidereal_resync")
+        self.data_timer = self.scheduler.add_timer(1000,
                                                self.update_data,
                                                name="update_data")
 
@@ -191,7 +194,7 @@ class Threepio(QtWidgets.QMainWindow):
             )
             self.data.append(self.current_data_point)  # Add to data list
 
-        self.clock.run_timers()  # Run all timers that are due
+        self.scheduler.run_timers()  # Run all timers that are due
 
         # Update every tick
         self.update_stripchart()
@@ -232,7 +235,7 @@ class Threepio(QtWidgets.QMainWindow):
                         ] + alerts
 
                 def callback():
-                    self.clock.reset_anchor_time()
+                    self.scheduler.reset_timer_anchors()
                     assert self.obs is not None
                     self.obs.next()
                     self.message("Taking calibration data!!!")
@@ -243,7 +246,7 @@ class Threepio(QtWidgets.QMainWindow):
             elif transmission is Comm.START_BG:
 
                 def callback():
-                    self.clock.reset_anchor_time()
+                    self.scheduler.reset_timer_anchors()
                     assert self.obs is not None
                     self.obs.next()
                     self.message("Taking background data!!!")
@@ -367,9 +370,6 @@ class Threepio(QtWidgets.QMainWindow):
         self.update_fps()
         self.update_console()
         self.update_voltage()
-
-        with open("time-experiment", "a") as file:
-            print(f"{self.clock.get_time()},{self.clock.get_sidereal_seconds()}", end="\n", file=file)
 
     def update_progress_bar(self):
         try:
