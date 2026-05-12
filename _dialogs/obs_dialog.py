@@ -1,8 +1,6 @@
 """Dialogue box for keying in a new observation"""
 
-import time
-
-from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import Qt, QTime
 from layouts import obs_ui  # compiled PyQt dialogue ui
 from tools import Alert, SuperClock, ObsType, Observation, ObsRecord
@@ -18,10 +16,14 @@ class ObsDialog(QDialog):
         clock: SuperClock,
         info=False,
     ):
-        QWidget.__init__(self)
+        super().__init__(parent_window)
         self.ui = obs_ui.Ui_Dialog()
         self.ui.setupUi(self)
-        self.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.CustomizeWindowHint)  # type: ignore
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.CustomizeWindowHint
+        )
 
         self.obs = obs
         self.clock: SuperClock = clock
@@ -183,20 +185,12 @@ class ObsDialog(QDialog):
             self.show_warning("Assuming ending RA is the next day")
 
         # Calculate start and end times
-        solar = self.clock.get_starting_epoch_time()  # Solar time of last calibration
-        sidereal = (
-            self.clock.get_starting_sidereal_time()
-        )  # Sidereal seconds since sidereal midnight before last calibration
-        start_time = solar + SuperClock.sidereal_to_solar(starting_ra - sidereal)
-        print(
-            f"{solar=}, {sidereal=}, {starting_ra=}, {start_time=}, current time={time.time()}"
-        )
+        start_time = self.clock.ra_to_epoch_time(starting_ra)
         end_time = (
             start_time + 180
             if self.obs.obs_type is ObsType.SPECTRUM
-            else (solar + self.clock.sidereal_to_solar(ending_ra - sidereal))
+            else self.clock.ra_to_epoch_time(ending_ra)
         )
-        print(f"{ending_ra=}, {end_time=}, current time={time.time()}")
 
         # If no filename, use default
         filename = self.ui.file_name_value.text()

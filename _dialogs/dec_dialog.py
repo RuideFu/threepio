@@ -1,6 +1,6 @@
 from enum import Enum
 
-from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtWidgets import QDialog
 
 from layouts import dec_cal_ui  # compiled PyQt dialogue ui
 from tools import DecCalc as dc
@@ -19,7 +19,7 @@ class DecDialog(QDialog):
     CAL_BACKUP_FILENAME = "dec-cal-backup.txt"
 
     def __init__(self, minitars: MiniTars, threepio):
-        QWidget.__init__(self)
+        super().__init__(threepio)
         self.ui = dec_cal_ui.Ui_Dialog()
         self.ui.setupUi(self)
         self.setWindowTitle("Calibrate declination")

@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import Qt
 from _tools.superclock import SuperClock
 from layouts import ra_cal_ui
@@ -8,7 +8,7 @@ class RADialog(QDialog):
     """New observation dialogue window"""
 
     def __init__(self, parent_window, superclock: SuperClock):
-        QWidget.__init__(self)
+        super().__init__(parent_window)
         self.ui = ra_cal_ui.Ui_Dialog()
         self.ui.setupUi(self)
 
@@ -17,7 +17,11 @@ class RADialog(QDialog):
         self.clock = superclock
 
         # Hide the close/minimize/fullscreen buttons
-        self.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.CustomizeWindowHint)  # type: ignore
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.CustomizeWindowHint
+        )
 
     def accept(self):
 
