@@ -80,6 +80,7 @@ class Threepio(QtWidgets.QMainWindow):
         self.stripchart_series_b = QtCharts.QLineSeries()
         self.stripchart_dynamic_scale_enabled = True
         self.stripchart_grid_enabled = False
+        self.stripchart_grid_density = 8
         self.stripchart_manual_max_voltage = 5.0
         self.stripchart_min_voltage_range = 1.0
         self.axis_x = QtCharts.QValueAxis()
@@ -101,6 +102,9 @@ class Threepio(QtWidgets.QMainWindow):
             self.update_stripchart_max_voltage
         )
         self.ui.stripchart_grid_checkbox.toggled.connect(self.toggle_stripchart_grid)
+        self.ui.stripchart_grid_density_slider.valueChanged.connect(
+            self.update_stripchart_grid_density
+        )
 
         self.ui.actionInfo.triggered.connect(self.handle_credits)
 
@@ -514,7 +518,6 @@ class Threepio(QtWidgets.QMainWindow):
 
             self.axis_y.setMin(oldest_y)
             self.axis_y.setMax(current_sideral_seconds)
-            self.axis_y.setVisible(False)
             self.update_stripchart_axes()
 
         except IndexError:  # No data yet
@@ -547,8 +550,20 @@ class Threepio(QtWidgets.QMainWindow):
 
     def toggle_stripchart_grid(self):
         self.stripchart_grid_enabled = self.ui.stripchart_grid_checkbox.isChecked()
+        self.axis_x.setVisible(self.stripchart_grid_enabled)
+        self.axis_y.setVisible(self.stripchart_grid_enabled)
+        self.axis_x.setLabelsVisible(False)
+        self.axis_y.setLabelsVisible(False)
         self.axis_x.setGridLineVisible(self.stripchart_grid_enabled)
         self.axis_y.setGridLineVisible(self.stripchart_grid_enabled)
+        self.axis_x.setMinorGridLineVisible(self.stripchart_grid_enabled)
+        self.axis_y.setMinorGridLineVisible(self.stripchart_grid_enabled)
+        self.ui.stripchart_grid_density_slider.setEnabled(self.stripchart_grid_enabled)
+        self.update_stripchart_axes()
+
+    def update_stripchart_grid_density(self):
+        self.stripchart_grid_density = self.ui.stripchart_grid_density_slider.value()
+        self.update_stripchart_axes()
 
     def calculate_stripchart_voltage_range(self):
         max_abs_voltage = 0.0
@@ -566,7 +581,20 @@ class Threepio(QtWidgets.QMainWindow):
             )
         self.axis_x.setMin(-max_voltage)
         self.axis_x.setMax(max_voltage)
-        self.axis_x.setVisible(False)
+        if not self.stripchart_grid_enabled:
+            self.axis_x.setVisible(False)
+            self.axis_y.setVisible(False)
+
+        y_range = self.axis_y.max() - self.axis_y.min()
+        x_range = max_voltage * 2
+        plot_area = self.chart.plotArea()
+        if y_range > 0 and x_range > 0 and plot_area.width() > 0 and plot_area.height() > 0:
+            x_divisions = max(1, self.stripchart_grid_density)
+            y_divisions = max(
+                1, int(round(x_divisions * (plot_area.height() / plot_area.width())))
+            )
+            self.axis_x.setTickCount(x_divisions + 1)
+            self.axis_y.setTickCount(y_divisions + 1)
 
     def update_voltage(self):
         if len(self.data) > 0:

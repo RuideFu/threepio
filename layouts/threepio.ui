@@ -633,10 +633,36 @@
               </property>
              </widget>
             </item>
+           </layout>
+          </item>
+          <item row="2" column="0" colspan="4">
+           <layout class="QHBoxLayout" name="horizontalLayout_5">
             <item>
              <widget class="QCheckBox" name="stripchart_grid_checkbox">
               <property name="text">
                <string>Grid</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="stripchart_grid_density_slider">
+              <property name="minimum">
+               <number>2</number>
+              </property>
+              <property name="maximum">
+               <number>24</number>
+              </property>
+              <property name="value">
+               <number>8</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="tickPosition">
+               <enum>QSlider::TicksBelow</enum>
+              </property>
+              <property name="tickInterval">
+               <number>1</number>
               </property>
              </widget>
             </item>
