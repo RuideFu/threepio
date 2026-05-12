@@ -598,7 +598,9 @@ class Threepio(QtWidgets.QMainWindow):
             self.axis_x.setTickType(QtCharts.QValueAxis.TickType.TicksFixed)
             self.axis_y.setTickType(QtCharts.QValueAxis.TickType.TicksFixed)
             self.axis_x.setTickAnchor(self.axis_x.min())
-            self.axis_y.setTickAnchor(self.axis_y.min())
+            current_sidereal_time = self.clock.get_sidereal_seconds()
+            time_scroll_offset = current_sidereal_time % self.stripchart_display_seconds
+            self.axis_y.setTickAnchor(self.axis_y.min() - time_scroll_offset)
             self.axis_x.setTickInterval(x_step)
             self.axis_y.setTickInterval(y_step)
             self.axis_x.setTickCount(x_divisions + 1)

@@ -645,6 +645,13 @@
              </widget>
             </item>
             <item>
+             <widget class="QLabel" name="stripchart_grid_sparser_label">
+              <property name="text">
+               <string>Sparser</string>
+              </property>
+             </widget>
+            </item>
+            <item>
              <widget class="QSlider" name="stripchart_grid_density_slider">
               <property name="minimum">
                <number>2</number>
@@ -663,6 +670,13 @@
               </property>
               <property name="tickInterval">
                <number>1</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="stripchart_grid_denser_label">
+              <property name="text">
+               <string>Denser</string>
               </property>
              </widget>
             </item>
