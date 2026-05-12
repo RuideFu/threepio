@@ -349,7 +349,7 @@ class Threepio(QtWidgets.QMainWindow):
     @staticmethod
     def handle_credits():
         dialog = CreditsDialog()
-        dialog.exec_()
+        dialog.exec()
 
     def update_stripchart_speed(self):
         self.stripchart_display_seconds = 120 - (
@@ -414,14 +414,14 @@ class Threepio(QtWidgets.QMainWindow):
         dish = QtGui.QPixmap("assets/dish.png")
         dish = QtWidgets.QGraphicsPixmapItem(dish)
         dish.setTransformOriginPoint(32, 32)
-        dish.setTransformationMode(QtCore.Qt.SmoothTransformation) # type: ignore
+        dish.setTransformationMode(QtCore.Qt.TransformationMode.SmoothTransformation)
         dish.setY(16)
         dish.setRotation(angle)
 
         # Telescope base
         base = QtGui.QPixmap("assets/base.png")
         base = QtWidgets.QGraphicsPixmapItem(base)
-        base.setTransformationMode(QtCore.Qt.SmoothTransformation) # type: ignore
+        base.setTransformationMode(QtCore.Qt.TransformationMode.SmoothTransformation)
 
         self.dec_scene.clear()
         for i in [dish, base]:
@@ -542,27 +542,27 @@ class Threepio(QtWidgets.QMainWindow):
             dialog.setWindowTitle("New " + obs.obs_type.name.capitalize())
         except AttributeError:
             pass
-        dialog.exec_()
+        dialog.exec()
         self.completed_one_calibration = False
 
     def handle_get_info(self):
         assert self.obs is not None
         dialog = ObsDialog(self, self.obs, self.clock, info=True)
         dialog.setWindowTitle("Current " + self.obs.obs_type.name.capitalize())
-        dialog.exec_()
+        dialog.exec()
 
     def dec_calibration(self):
         dialog = DecDialog(self.minitars, self)
         if self.mode is Threepio.Mode.TESTING:
             dialog.show()
-        dialog.exec_()
+        dialog.exec()
 
         self.dec_calc.load_dec_cal()
 
     def ra_calibration(self):
         dialog = RADialog(self, self.clock)
         dialog.show()
-        dialog.exec_()
+        dialog.exec()
 
     def message(self, message, beep=True, log=True):
         if log:
@@ -641,7 +641,7 @@ class Threepio(QtWidgets.QMainWindow):
         alert = AlertDialog(alert_text, button_text)
         self.beep(message="alert")
         alert.show()
-        alert.exec_()
+        alert.exec()
 
     def beep(self, message=""):
         """Make beep play for user. Message param is only for debugging."""
@@ -657,7 +657,9 @@ class Threepio(QtWidgets.QMainWindow):
         quit_dialog.ui.setupUi(quit_dialog)
 
         quit_dialog.setWindowFlags(
-            QtCore.Qt.Window | QtCore.Qt.WindowTitleHint | QtCore.Qt.CustomizeWindowHint  # type: ignore
+            QtCore.Qt.WindowType.Window
+            | QtCore.Qt.WindowType.WindowTitleHint
+            | QtCore.Qt.WindowType.CustomizeWindowHint
         )
 
         close = quit_dialog.exec()
@@ -677,7 +679,7 @@ def main():
     window.set_state_normal()
     # window.set_state_testing()
     window.show()
-    sys.exit(app.exec_())  # Exit with code from app
+    sys.exit(app.exec())  # Exit with code from app
 
 
 if __name__ == "__main__":

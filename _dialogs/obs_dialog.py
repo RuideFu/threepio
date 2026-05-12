@@ -1,6 +1,6 @@
 """Dialogue box for keying in a new observation"""
 
-from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import Qt, QTime
 from layouts import obs_ui  # compiled PyQt dialogue ui
 from tools import Alert, SuperClock, ObsType, Observation, ObsRecord
@@ -16,10 +16,14 @@ class ObsDialog(QDialog):
         clock: SuperClock,
         info=False,
     ):
-        QWidget.__init__(self)
+        super().__init__(parent_window)
         self.ui = obs_ui.Ui_Dialog()
         self.ui.setupUi(self)
-        self.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.CustomizeWindowHint)  # type: ignore
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.CustomizeWindowHint
+        )
 
         self.obs = obs
         self.clock: SuperClock = clock
