@@ -593,18 +593,14 @@ class Threepio(QtWidgets.QMainWindow):
             y_divisions = max(
                 1, int(round(x_divisions * (plot_area.height() / plot_area.width())))
             )
-            x_step = x_range / x_divisions
             y_step = y_range / y_divisions
             self.axis_x.setTickType(QtCharts.QValueAxis.TickType.TicksFixed)
-            self.axis_y.setTickType(QtCharts.QValueAxis.TickType.TicksFixed)
-            self.axis_x.setTickAnchor(self.axis_x.min())
+            self.axis_y.setTickType(QtCharts.QValueAxis.TickType.TicksDynamic)
             current_sidereal_time = self.clock.get_sidereal_seconds()
             time_scroll_offset = current_sidereal_time % self.stripchart_display_seconds
-            self.axis_y.setTickAnchor(self.axis_y.min() - time_scroll_offset)
-            self.axis_x.setTickInterval(x_step)
+            self.axis_y.setTickAnchor(current_sidereal_time - time_scroll_offset)
             self.axis_y.setTickInterval(y_step)
             self.axis_x.setTickCount(x_divisions + 1)
-            self.axis_y.setTickCount(y_divisions + 1)
 
     def update_voltage(self):
         if len(self.data) > 0:
