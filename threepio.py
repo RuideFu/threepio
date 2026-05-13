@@ -203,10 +203,10 @@ class Threepio(QtWidgets.QMainWindow):
         if tars_datum is not None and minitars_datum is not None:
             self.current_dec = self.dec_calc.calculate_declination(minitars_datum)
             self.current_data_point = DataPoint(  # Create data point
-                sidereal_timestamp,  # RA
-                self.current_dec,  # Dec
-                tars_datum.a,  # Channel A
-                tars_datum.b,  # Channel B
+                float(sidereal_timestamp),  # RA
+                float(self.current_dec),  # Dec
+                float(tars_datum.a),  # Channel A
+                float(tars_datum.b),  # Channel B
             )
             self.data.append(self.current_data_point)  # Add to data list
 
@@ -482,9 +482,19 @@ class Threepio(QtWidgets.QMainWindow):
         try:
             # Parse latest data point
             # TODO: This will duplicate points if one fails to read
-            new_a = self.data[len(self.data) - 1].a
-            new_b = self.data[len(self.data) - 1].b
-            new_ra = self.data[len(self.data) - 1].timestamp
+            new_a_raw = self.data[len(self.data) - 1].a
+            new_b_raw = self.data[len(self.data) - 1].b
+            new_ra_raw = self.data[len(self.data) - 1].timestamp
+
+            # Handle legacy tuple payloads from old Tars sampling code.
+            if isinstance(new_a_raw, tuple):
+                new_a_raw = new_a_raw[1]
+            if isinstance(new_b_raw, tuple):
+                new_b_raw = new_b_raw[1]
+
+            new_a = float(new_a_raw)
+            new_b = float(new_b_raw)
+            new_ra = float(new_ra_raw)
 
             # Add new data point to both series
             self.stripchart_series_a.append(new_a, new_ra)

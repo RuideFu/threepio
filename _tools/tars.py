@@ -12,15 +12,16 @@ import time
 
 import random as r  # For testing
 import math
+from dataclasses import dataclass
 
 
+@dataclass(frozen=True)
 class SignalDatum:
-    def __init__(self, a, b):
-        self.a = a
-        self.b = b
+    a: float
+    b: float
 
 
-def discovery() -> tuple:
+def discovery() -> tuple[str | None, str | None]:
     # Get a list of active com ports to scan for possible DATAQ Instruments devices
     available_ports = serial.tools.list_ports.comports()
 
@@ -92,10 +93,11 @@ class Tars:
 
         if self.in_waiting() < (2 * len(self.channels)):
             return None
-        buffer_output = [
-            (channel & 3, self.buffer_read(channel)) for channel in self.channels
-        ]
-        return SignalDatum(a=buffer_output[0], b=buffer_output[1])
+        channel_a = self.buffer_read(self.channels[0])
+        channel_b = self.buffer_read(self.channels[1])
+        if channel_a is None or channel_b is None:
+            return None
+        return SignalDatum(a=float(channel_a), b=float(channel_b))
 
     def read_latest(self) -> SignalDatum | None:
         """
@@ -189,4 +191,4 @@ class Tars:
 
         a, b = (i / 272 + c + 1 for i in (a, b))  # Normalize, kinda
 
-        return SignalDatum(a, b)
+        return SignalDatum(float(a), float(b))
