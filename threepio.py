@@ -372,7 +372,7 @@ class Threepio(QtWidgets.QMainWindow):
 
     def update_stripchart_speed(self):
         self.stripchart_display_seconds = 120 - (
-            (110 / 6) * self.ui.stripchart_speed_slider.value()
+            (110 / 1000) * self.ui.stripchart_speed_slider.value()
         )
         self.ui.stripchart_speed_value_label.setText(
             f"{self.stripchart_display_seconds:.0f}s"

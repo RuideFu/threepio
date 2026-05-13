@@ -307,11 +307,10 @@ class Ui_MainWindow(object):
 
         self.stripchart_speed_slider = QSlider(self.stripchart_control_group)
         self.stripchart_speed_slider.setObjectName(u"stripchart_speed_slider")
-        self.stripchart_speed_slider.setMaximum(6)
-        self.stripchart_speed_slider.setValue(3)
+        self.stripchart_speed_slider.setMaximum(1000)
+        self.stripchart_speed_slider.setValue(500)
         self.stripchart_speed_slider.setOrientation(Qt.Horizontal)
-        self.stripchart_speed_slider.setTickPosition(QSlider.TicksBothSides)
-        self.stripchart_speed_slider.setTickInterval(1)
+        self.stripchart_speed_slider.setTickPosition(QSlider.NoTicks)
 
         self.gridLayout_4.addWidget(self.stripchart_speed_slider, 0, 1, 1, 1)
 

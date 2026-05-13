@@ -557,19 +557,16 @@
              <string>How quickly the chart scrolls; the readout shows the visible time window in seconds.</string>
             </property>
             <property name="maximum">
-             <number>6</number>
+             <number>1000</number>
             </property>
             <property name="value">
-             <number>3</number>
+             <number>500</number>
             </property>
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
             </property>
             <property name="tickPosition">
-             <enum>QSlider::TicksBothSides</enum>
-            </property>
-            <property name="tickInterval">
-             <number>1</number>
+             <enum>QSlider::NoTicks</enum>
             </property>
            </widget>
           </item>
