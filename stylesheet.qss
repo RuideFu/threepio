@@ -1,0 +1,23 @@
+QGroupBox#stripchart_control_group QLabel[role="readout"] {
+    font-family: "Iosevka Aile";
+    min-width: 56px;
+    qproperty-alignment: AlignRight;
+}
+
+QGroupBox#stripchart_control_group QSlider::groove:horizontal {
+    height: 4px;
+}
+
+QPushButton#toggle_channel_a_button:checked {
+    border-left: 4px solid #2196f3;
+}
+
+QPushButton#toggle_channel_b_button:checked {
+    border-left: 4px solid #ff5252;
+}
+
+QPushButton#toggle_channel_a_button:!checked,
+QPushButton#toggle_channel_b_button:!checked {
+    border-left: 4px solid transparent;
+    color: #888;
+}

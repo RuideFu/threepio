@@ -540,64 +540,83 @@
          <property name="title">
           <string>Strip chart</string>
          </property>
-         <layout class="QGridLayout" name="gridLayout_4">
-          <item row="0" column="0" colspan="4">
-           <widget class="QFrame" name="frame_2">
-            <layout class="QGridLayout" name="gridLayout_3">
-             <property name="topMargin">
-              <number>0</number>
-             </property>
-             <property name="bottomMargin">
-              <number>0</number>
-             </property>
-             <item row="0" column="2">
-              <widget class="QLabel" name="stripchart_faster_label">
-               <property name="text">
-                <string>Faster</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QSlider" name="stripchart_speed_slider">
-               <property name="maximum">
-                <number>6</number>
-               </property>
-               <property name="value">
-                <number>3</number>
-               </property>
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <property name="tickPosition">
-                <enum>QSlider::TicksBothSides</enum>
-               </property>
-               <property name="tickInterval">
-                <number>1</number>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="stripchart_slower_label">
-               <property name="text">
-                <string>Slower</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-            </layout>
+         <layout class="QGridLayout" name="gridLayout_4" columnstretch="0,1,0">
+          <item row="0" column="0">
+           <widget class="QLabel" name="stripchart_speed_label">
+            <property name="text">
+             <string>Scroll speed</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
            </widget>
           </item>
-          <item row="1" column="0" colspan="4">
-           <layout class="QHBoxLayout" name="horizontalLayout_4">
+          <item row="0" column="1">
+           <widget class="QSlider" name="stripchart_speed_slider">
+            <property name="toolTip">
+             <string>How quickly the chart scrolls; the readout shows the visible time window in seconds.</string>
+            </property>
+            <property name="maximum">
+             <number>6</number>
+            </property>
+            <property name="value">
+             <number>3</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TicksBothSides</enum>
+            </property>
+            <property name="tickInterval">
+             <number>1</number>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="stripchart_speed_value_label">
+            <property name="minimumSize">
+             <size>
+              <width>56</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>How quickly the chart scrolls; the readout shows the visible time window in seconds.</string>
+            </property>
+            <property name="text">
+             <string>65s</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="role" stdset="0">
+             <string>readout</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="stripchart_voltage_label">
+            <property name="text">
+             <string>Voltage scale</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <layout class="QHBoxLayout" name="stripchart_voltage_layout" stretch="0,1">
+            <property name="spacing">
+             <number>8</number>
+            </property>
             <item>
              <widget class="QCheckBox" name="stripchart_dynamic_scale_checkbox">
+              <property name="toolTip">
+               <string>Auto-fit the voltage axis to incoming data; when off, use the manual slider.</string>
+              </property>
               <property name="text">
-               <string>Dynamic Scale</string>
+               <string>Auto</string>
               </property>
               <property name="checked">
                <bool>true</bool>
@@ -606,6 +625,9 @@
             </item>
             <item>
              <widget class="QSlider" name="stripchart_max_voltage_slider">
+              <property name="toolTip">
+               <string>Manual maximum voltage (±) when Auto is off.</string>
+              </property>
               <property name="minimum">
                <number>1</number>
               </property>
@@ -626,33 +648,60 @@
               </property>
              </widget>
             </item>
-            <item>
-             <widget class="QLabel" name="stripchart_max_voltage_value_label">
-              <property name="text">
-               <string>5V</string>
-              </property>
-             </widget>
-            </item>
            </layout>
           </item>
-          <item row="2" column="0" colspan="4">
-           <layout class="QHBoxLayout" name="horizontalLayout_5">
+          <item row="1" column="2">
+           <widget class="QLabel" name="stripchart_max_voltage_value_label">
+            <property name="minimumSize">
+             <size>
+              <width>56</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>Manual maximum voltage (±) when Auto is off.</string>
+            </property>
+            <property name="text">
+             <string>±5 V</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="role" stdset="0">
+             <string>readout</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="stripchart_grid_label">
+            <property name="text">
+             <string>Grid</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <layout class="QHBoxLayout" name="stripchart_grid_layout" stretch="0,1">
+            <property name="spacing">
+             <number>8</number>
+            </property>
             <item>
              <widget class="QCheckBox" name="stripchart_grid_checkbox">
-              <property name="text">
-               <string>Grid</string>
+              <property name="toolTip">
+               <string>Show grid lines on the chart.</string>
               </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="stripchart_grid_sparser_label">
               <property name="text">
-               <string>Sparser</string>
+               <string>Show</string>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QSlider" name="stripchart_grid_density_slider">
+              <property name="toolTip">
+               <string>Voltage step per grid division.</string>
+              </property>
               <property name="minimum">
                <number>2</number>
               </property>
@@ -673,46 +722,101 @@
               </property>
              </widget>
             </item>
+           </layout>
+          </item>
+          <item row="2" column="2">
+           <widget class="QLabel" name="stripchart_grid_density_value_label">
+            <property name="minimumSize">
+             <size>
+              <width>56</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>Voltage step per grid division.</string>
+            </property>
+            <property name="text">
+             <string>1.3 V/div</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="role" stdset="0">
+             <string>readout</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="stripchart_channels_label">
+            <property name="text">
+             <string>Channels</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1" colspan="2">
+           <layout class="QHBoxLayout" name="stripchart_actions_layout" stretch="0,0,1,0">
+            <property name="spacing">
+             <number>8</number>
+            </property>
             <item>
-             <widget class="QLabel" name="stripchart_grid_denser_label">
+             <widget class="QPushButton" name="toggle_channel_a_button">
+              <property name="toolTip">
+               <string>Show or hide channel A.</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
               <property name="text">
-               <string>Denser</string>
+               <string>Toggle A</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="toggle_channel_b_button">
+              <property name="toolTip">
+               <string>Show or hide channel B.</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+              <property name="text">
+               <string>Toggle B</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_6">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="chart_clear_button">
+              <property name="toolTip">
+               <string>Discard the currently plotted samples.</string>
+              </property>
+              <property name="text">
+               <string>Clear chart</string>
               </property>
              </widget>
             </item>
            </layout>
-          </item>
-          <item row="3" column="0" colspan="4">
-           <widget class="QFrame" name="frame">
-            <layout class="QHBoxLayout" name="horizontalLayout">
-             <property name="leftMargin">
-              <number>0</number>
-             </property>
-             <property name="topMargin">
-              <number>0</number>
-             </property>
-             <property name="rightMargin">
-              <number>0</number>
-             </property>
-             <property name="bottomMargin">
-              <number>0</number>
-             </property>
-             <item>
-              <widget class="QPushButton" name="toggle_channel_button">
-               <property name="text">
-                <string>Toggle Channels</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="chart_clear_button">
-               <property name="text">
-                <string>Clear Chart</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
           </item>
          </layout>
         </widget>
@@ -1062,13 +1166,19 @@
   <customwidget>
    <class>QChartView</class>
    <extends>QGraphicsView</extends>
-   <header>PyQt5.QtChart</header>
+    <header>PySide6.QtCharts</header>
   </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>stripchart_speed_slider</tabstop>
-  <tabstop>chart_clear_button</tabstop>
-  <tabstop>dec_view</tabstop>
+   <tabstop>stripchart_speed_slider</tabstop>
+   <tabstop>stripchart_dynamic_scale_checkbox</tabstop>
+   <tabstop>stripchart_max_voltage_slider</tabstop>
+   <tabstop>stripchart_grid_checkbox</tabstop>
+   <tabstop>stripchart_grid_density_slider</tabstop>
+   <tabstop>toggle_channel_a_button</tabstop>
+   <tabstop>toggle_channel_b_button</tabstop>
+   <tabstop>chart_clear_button</tabstop>
+   <tabstop>dec_view</tabstop>
   <tabstop>variance_dial</tabstop>
   <tabstop>polarization_dial</tabstop>
   <tabstop>noise_dial</tabstop>

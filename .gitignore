@@ -3,6 +3,7 @@
 .vscode
 .nova
 venv/
+.venv/
 data/*
 !data/.git-placeholder.txt
 .python-version

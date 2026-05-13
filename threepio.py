@@ -53,8 +53,9 @@ class Threepio(QtWidgets.QMainWindow):
 
         # Use main_ui for window setup
         self.ui = threepio_ui.Ui_MainWindow()
-        with open("stylesheet.qss") as f:
-            self.setStyleSheet(f.read())
+        with open("stylesheet.qss", encoding="utf-8") as f:
+            self.base_stylesheet = f.read()
+        self.setStyleSheet(self.base_stylesheet)
         self.ui.setupUi(self)
         self.setWindowTitle("Threepio")
 
@@ -86,7 +87,7 @@ class Threepio(QtWidgets.QMainWindow):
         self.axis_x = QtCharts.QValueAxis()
         self.axis_y = QtCharts.QValueAxis()
         self.chart = QtCharts.QChart()
-        self.ui.stripchart.setRenderHint(QtGui.QPainter.Antialiasing)
+        self.ui.stripchart.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         self.initialize_stripchart()  # Should this include more of the above?
 
         self.update_stripchart_speed()
@@ -120,7 +121,8 @@ class Threepio(QtWidgets.QMainWindow):
         self.ui.actionTesting.triggered.connect(self.set_state_testing)
         self.ui.actionLegacy.triggered.connect(self.toggle_state_legacy)
 
-        self.ui.toggle_channel_button.clicked.connect(self.toggle_channels)
+        self.ui.toggle_channel_a_button.toggled.connect(self.toggle_channel_a)
+        self.ui.toggle_channel_b_button.toggled.connect(self.toggle_channel_b)
         self.ui.chart_clear_button.clicked.connect(self.clear_stripchart)
 
         # Bleeps and bloops
@@ -329,9 +331,10 @@ class Threepio(QtWidgets.QMainWindow):
     def toggle_state_legacy(self):
         """Makes Threepio look like the outgoing ERIRA DAQ software."""
         self.legacy_mode = not self.legacy_mode
-        self.setStyleSheet(
-            "background-color:#00ff00; color:#ff0000" if self.legacy_mode else ""
-        )
+        legacy_stylesheet = ""
+        if self.legacy_mode:
+            legacy_stylesheet = "\nbackground-color:#00ff00; color:#ff0000"
+        self.setStyleSheet(f"{self.base_stylesheet}{legacy_stylesheet}")
         url = QtCore.QUrl()
         self.beep_sound.setSource(
             url.fromLocalFile(
@@ -370,6 +373,9 @@ class Threepio(QtWidgets.QMainWindow):
     def update_stripchart_speed(self):
         self.stripchart_display_seconds = 120 - (
             (110 / 6) * self.ui.stripchart_speed_slider.value()
+        )
+        self.ui.stripchart_speed_value_label.setText(
+            f"{self.stripchart_display_seconds:.0f}s"
         )
 
     def update_gui(self):
@@ -469,8 +475,11 @@ class Threepio(QtWidgets.QMainWindow):
         self.stripchart_series_a.attachAxis(self.axis_y)
         self.stripchart_series_b.attachAxis(self.axis_y)
         self.update_stripchart_max_voltage()
+        self.update_stripchart_grid_density()
         self.toggle_stripchart_dynamic_scale()
         self.toggle_stripchart_grid()
+        self.toggle_channel_a(self.channel_visibility[0])
+        self.toggle_channel_b(self.channel_visibility[1])
 
         legend = self.chart.legend()
         if legend is not None:
@@ -533,9 +542,15 @@ class Threepio(QtWidgets.QMainWindow):
         except IndexError:  # No data yet
             pass
 
-    def toggle_channels(self):
-        a, b = self.channel_visibility
-        self.channel_visibility = (b, a != b)
+    def toggle_channel_a(self, checked: bool):
+        _, channel_b_visible = self.channel_visibility
+        self.channel_visibility = (checked, channel_b_visible)
+        self.ui.toggle_channel_a_button.setChecked(checked)
+
+    def toggle_channel_b(self, checked: bool):
+        channel_a_visible, _ = self.channel_visibility
+        self.channel_visibility = (channel_a_visible, checked)
+        self.ui.toggle_channel_b_button.setChecked(checked)
 
     def clear_stripchart(self):
         self.should_clear_stripchart = True
@@ -544,9 +559,9 @@ class Threepio(QtWidgets.QMainWindow):
         self.stripchart_dynamic_scale_enabled = (
             self.ui.stripchart_dynamic_scale_checkbox.isChecked()
         )
-        self.ui.stripchart_max_voltage_slider.setEnabled(
-            not self.stripchart_dynamic_scale_enabled
-        )
+        manual_visible = not self.stripchart_dynamic_scale_enabled
+        self.ui.stripchart_max_voltage_slider.setVisible(manual_visible)
+        self.ui.stripchart_max_voltage_value_label.setVisible(manual_visible)
         self.update_stripchart_axes()
 
     def update_stripchart_max_voltage(self):
@@ -554,7 +569,7 @@ class Threepio(QtWidgets.QMainWindow):
             self.ui.stripchart_max_voltage_slider.value()
         )
         self.ui.stripchart_max_voltage_value_label.setText(
-            f"{self.stripchart_manual_max_voltage:.0f}V"
+            f"±{self.stripchart_manual_max_voltage:.0f} V"
         )
         self.update_stripchart_axes()
 
@@ -568,7 +583,10 @@ class Threepio(QtWidgets.QMainWindow):
         self.axis_y.setGridLineVisible(self.stripchart_grid_enabled)
         self.axis_x.setMinorGridLineVisible(self.stripchart_grid_enabled)
         self.axis_y.setMinorGridLineVisible(self.stripchart_grid_enabled)
-        self.ui.stripchart_grid_density_slider.setEnabled(self.stripchart_grid_enabled)
+        self.ui.stripchart_grid_density_slider.setVisible(self.stripchart_grid_enabled)
+        self.ui.stripchart_grid_density_value_label.setVisible(
+            self.stripchart_grid_enabled
+        )
         self.update_stripchart_axes()
 
     def update_stripchart_grid_density(self):
@@ -595,11 +613,16 @@ class Threepio(QtWidgets.QMainWindow):
             self.axis_x.setVisible(False)
             self.axis_y.setVisible(False)
 
+        x_divisions = max(1, self.stripchart_grid_density)
+        volts_per_div = (max_voltage * 2) / x_divisions
+        self.ui.stripchart_grid_density_value_label.setText(
+            f"{volts_per_div:.1f} V/div"
+        )
+
         y_range = self.axis_y.max() - self.axis_y.min()
         x_range = max_voltage * 2
         plot_area = self.chart.plotArea()
         if y_range > 0 and x_range > 0 and plot_area.width() > 0 and plot_area.height() > 0:
-            x_divisions = max(1, self.stripchart_grid_density)
             y_divisions = max(
                 1, int(round(x_divisions * (plot_area.height() / plot_area.width())))
             )

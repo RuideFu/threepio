@@ -27,7 +27,7 @@ Testing and Validation
 UI and Generated Files
 - In `layouts/`, the `.ui` files are the editable sources and the `*_ui.py` files are generated artifacts.
 - If a task changes widget structure, labels, or layout wiring, update the relevant `.ui` file and regenerate the matching `*_ui.py` file so both stay in sync.
-- The current `layouts/Makefile` uses `pyuic5`, while the runtime imports `PySide6`; do not switch toolchains unless the task explicitly requires it. If regeneration is needed, preserve the repository's existing pattern and call out any mismatch you encounter.
+- Use `pyside6-uic` to regenerate files in `layouts/`; the runtime and generated modules should stay on the same PySide6 toolchain.
 Editing Guidance
 - Make focused, minimal changes that match the existing code style.
 - Prefer fixing root causes over adding defensive patches around symptoms.
