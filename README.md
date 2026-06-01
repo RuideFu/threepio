@@ -8,60 +8,39 @@ Threepio uses `PyQt5` for GUI and `pySerial` for communication to the data colle
 
 ## Setting Up
 
-### For Linux & macOS
+Threepio uses [`uv`](https://docs.astral.sh/uv/) to manage its Python version, virtual environment, and dependencies.
+
+### Install `uv`
+
+**Linux & macOS**
+```
+$ curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Windows** (PowerShell)
+```
+PS> powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+See the [`uv` installation docs](https://docs.astral.sh/uv/getting-started/installation/) for alternatives (Homebrew, pipx, etc.).
+
+### Clone & install
+
 Clone the repo and `cd` into it.
 ```
 $ git clone https://github.com/finnjames/threepio.git
 $ cd threepio
 ```
 
-Threepio requires Python 3.13.x. Using a virtual environment is strongly recommended.
+Threepio requires Python 3.13.x. `uv` reads `pyproject.toml`/`uv.lock`, automatically installing the right Python version (if needed) and creating a virtual environment in `.venv`.
 ```
-$ python --version
-Python 3.13.6
-$ python -m venv --upgrade-deps venv
+$ uv sync
 ```
 
-Activate the virtual environment.
+### Run
+
 ```
-$ source ./venv/bin/activate
+$ uv run threepio.py
 ```
 
-Install dependencies.
-```
-(venv) $ pip install -r requirements.txt
-```
-
-Run
-```
-(venv) $ python threepio.py
-```
-
-### For Windows
-Clone the repo and `cd` into it.
-```
-$ git clone https://github.com/finnjames/threepio.git
-$ cd threepio
-```
-
-Threepio requires Python 3.13.x. Using a virtual environment is strongly recommended.
-```
-$ python --version
-Python 3.13.6
-$ python -m venv --upgrade-deps venv
-```
-
-Activate the virtual environment.
-```
-$ .\venv\Scripts\Activate.ps1
-```
-
-Install dependencies.
-```
-(venv) $ python -m pip install -r requirements.txt
-```
-
-Run
-```
-(venv) $ python threepio.py
-```
+`uv run` automatically uses the project's virtual environment, so there's no need to activate it manually. If you prefer, you can still activate it (`source .venv/bin/activate` on Linux/macOS, `.\.venv\Scripts\Activate.ps1` on Windows) and run `python threepio.py` directly.
