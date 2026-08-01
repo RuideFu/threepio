@@ -10,6 +10,7 @@ import sys
 import time
 
 import serial
+import serial.tools.list_ports
 
 from .minitars import discovery
 
@@ -107,12 +108,20 @@ def verdict(port: str) -> str:
 
 
 def main():
+    print("Available ports:")
+    for p in serial.tools.list_ports.comports():
+        print(f"  {p.device:20s} {p.description}  [{p.hwid}]")
+
     port = sys.argv[1] if len(sys.argv) > 1 else discovery()
     if port is None:
-        print("No declinometer found. Pass a port explicitly: "
-              "uv run python -m _tools.dec_probe /dev/tty.usbserial-XXXX")
+        print(
+            "\nNo declinometer auto-detected. Auto-detection looks for the FTDI\n"
+            "adapter's USB id (VID:PID=0403:6001); a built-in COM port does not\n"
+            "have one. Pass the port explicitly, using a name from the list above:\n"
+            "  uv run python -m _tools.dec_probe COM4"
+        )
         return 1
-    print(f"Probing {port}")
+    print(f"\nProbing {port}")
 
     for baudrate in BAUDRATES:
         try:

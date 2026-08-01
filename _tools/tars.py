@@ -5,6 +5,8 @@ the DATAQ device connected via a USB serial connection. The module also includes
 a few helper functions relevant to the tasks.
 """
 
+import os
+
 import serial
 from .myserial import MySerial
 import serial.tools.list_ports
@@ -21,6 +23,10 @@ class SignalDatum:
     b: float
 
 
+DAQ_PORT_ENV = "THREEPIO_DAQ_PORT"
+DEC_PORT_ENV = "THREEPIO_DEC_PORT"
+
+
 def discovery() -> tuple[str | None, str | None]:
     # Get a list of active com ports to scan for possible DATAQ Instruments devices
     available_ports = serial.tools.list_ports.comports()
@@ -32,6 +38,14 @@ def discovery() -> tuple[str | None, str | None]:
             dataq = p.device
         if "VID:PID=0403:6001" in p.hwid:
             declinometer = p.device
+
+    # An explicit port always wins. Auto-detection matches on the USB VID:PID of
+    # the FTDI adapter, which a built-in COM port (or any non-FTDI adapter) does
+    # not have, so on those machines the port can only be chosen by name:
+    #     set THREEPIO_DEC_PORT=COM4        (Windows)
+    #     export THREEPIO_DEC_PORT=/dev/... (macOS/Linux)
+    dataq = os.environ.get(DAQ_PORT_ENV) or dataq
+    declinometer = os.environ.get(DEC_PORT_ENV) or declinometer
 
     return dataq, declinometer
 

@@ -2,6 +2,8 @@
 Small version of Tars, meant to be used with the Arduino declinometer as opposed to the
 DataQ.
 """
+import os
+
 import serial
 from .myserial import MySerial
 from .declog import get_dec_logger
@@ -22,6 +24,9 @@ def discovery():
         log.debug(f"discovery: port {p.device} hwid={p.hwid}")
         if "VID:PID=0403:6001" in p.hwid:
             declinometer = p.device
+
+    # See tars.discovery: a built-in COM port has no USB VID:PID to match on.
+    declinometer = os.environ.get("THREEPIO_DEC_PORT") or declinometer
 
     log.info(f"discovery: declinometer={declinometer}")
     return declinometer
