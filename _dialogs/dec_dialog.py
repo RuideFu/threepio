@@ -1,10 +1,14 @@
+import time
 from enum import Enum
 
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QApplication, QDialog
 
+from _tools.declog import get_dec_logger
 from layouts import dec_cal_ui  # compiled PyQt dialogue ui
 from tools import DecCalc as dc
 from tools import MiniTars
+
+log = get_dec_logger()
 
 
 class NorthSouth(Enum):
@@ -17,6 +21,9 @@ class DecDialog(QDialog):
 
     CAL_FILENAME = "dec-cal.txt"
     CAL_BACKUP_FILENAME = "dec-cal-backup.txt"
+
+    READ_TIMEOUT = 3.0  # seconds to wait for a declinometer reading
+    POLL_INTERVAL = 0.01
 
     def __init__(self, minitars: MiniTars, threepio):
         super().__init__(threepio)
@@ -31,6 +38,7 @@ class DecDialog(QDialog):
         self.current_dec = dc.SOUTH_DEC
         self.data = self.get_empty_data()
         self.confirmation_requested = False
+        self.recording = False
         self.ui.warning_label.hide()
         self.update_labels()
 
@@ -67,12 +75,18 @@ class DecDialog(QDialog):
         return {key: None for key in self.get_dec_range()}
 
     def handle_record(self):
+        if self.recording:  # wait_for_dec pumps events, so guard re-entry
+            return
         self.threepio.beep(message="DecDialog.handle_record")
 
-        # Read just the declination value
-        new_dec = None
-        while new_dec is None:
-            new_dec = self.minitars.read_latest()
+        new_dec = self.wait_for_dec()
+        if new_dec is None:
+            self.ui.warning_label.setText(
+                f"No declinometer data after {self.READ_TIMEOUT:.0f}s — "
+                "check that the declinometer is connected and powered"
+            )
+            self.ui.warning_label.show()
+            return
 
         self.data[self.current_dec] = new_dec
 
@@ -90,6 +104,44 @@ class DecDialog(QDialog):
         self.move_step(self.step)
 
         self.update_labels()
+
+    def wait_for_dec(self) -> float | None:
+        """
+        Poll the declinometer until it yields a value, giving up after
+        READ_TIMEOUT. Events are pumped between polls so the window keeps
+        repainting instead of freezing; returns None if nothing arrived.
+        """
+        log.info(f"wait_for_dec: recording dec={self.current_dec}")
+        self.recording = True
+        self.minitars.verbose = True
+        # processEvents below lets Threepio.tick() run, and tick() calls
+        # read_latest() on this same MiniTars — it would consume the very
+        # reading we are waiting for. Pause the primary timer for the duration.
+        self.threepio.timer.stop()
+        start = time.perf_counter()
+        polls = 0
+        try:
+            while True:
+                new_dec = self.minitars.read_latest()
+                polls += 1
+                if new_dec is not None:
+                    log.info(
+                        f"wait_for_dec: got {new_dec} after "
+                        f"{time.perf_counter() - start:.3f}s ({polls} polls)"
+                    )
+                    return new_dec
+                if time.perf_counter() - start > self.READ_TIMEOUT:
+                    log.error(
+                        f"wait_for_dec: timed out after {self.READ_TIMEOUT}s "
+                        f"({polls} polls, bad_lines={self.minitars.bad_line_count})"
+                    )
+                    return None
+                QApplication.processEvents()
+                time.sleep(self.POLL_INTERVAL)
+        finally:
+            self.threepio.timer.start(self.threepio.BASE_PERIOD)
+            self.minitars.verbose = False
+            self.recording = False
 
     def handle_save(self):
         try:

@@ -14,3 +14,4 @@ dist/
 .qt_for_python
 dec-cal*.txt
 test.py
+dec-debug.log

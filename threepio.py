@@ -143,6 +143,12 @@ class Threepio(QtWidgets.QMainWindow):
         self.tars = Tars(parent=self, device=dataq)
         self.tars.start()
         self.minitars = MiniTars(parent=self, device=declinometer)
+        if declinometer is None:
+            # Simulated declination looks identical to real data downstream, so
+            # say so loudly rather than only writing it to the message log.
+            self.alert(Alert("Declinometer not found — declination is SIMULATED", "Got it"))
+        elif not self.minitars.handshake():
+            self.alert(Alert("Declinometer found but not responding", "Got it"))
         self.minitars.start()
 
         # Establish observation
