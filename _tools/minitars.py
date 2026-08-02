@@ -80,6 +80,13 @@ class MiniTars:
         if self.testing:
             return True
 
+        # A unit already in continuous ASCII mode needs nothing done to it, and
+        # these settings are stored in non-volatile memory, so check before
+        # writing rather than rewriting the sensor's configuration every launch.
+        if self._streaming():
+            log.info("handshake: already streaming ASCII angles")
+            return True
+
         if self._command(b"gettemp") is None:
             msg = "Declinometer is not responding (no reply to gettemp)"
             self.parent.log(msg)
@@ -88,14 +95,69 @@ class MiniTars:
 
         for command in (b"setoasc", b"setcasc"):
             reply = self._command(command)
-            if reply is None or not reply.startswith(b"OK"):
-                msg = f"Declinometer rejected {command.decode()}: {reply!r}"
-                self.parent.log(msg)
-                log.error(f"handshake: {msg}")
-                return False
+            # 'OK' is not necessarily at the front: once the sensor is streaming,
+            # angle frames interleave with the reply to a command.
+            if reply is None or b"OK" not in reply:
+                log.warning(f"handshake: no OK for {command.decode()}: {reply!r}")
 
-        log.info("handshake: sensor in continuous ASCII mode")
+        # Whether or not the OKs were seen, the real test is angle data arriving.
+        if not self._streaming():
+            msg = "Declinometer will not stream angle data"
+            self.parent.log(msg)
+            log.error(f"handshake: {msg}")
+            return False
+
+        log.info("handshake: sensor now streaming ASCII angles")
         return True
+
+    def _streaming(self, window: float = 4.0) -> bool:
+        """
+        True if a well-formed angle frame arrives within `window` seconds.
+
+        The window has to cover the slowest output rate a unit may be set to.
+        Sensors configured for continuous output do not all run at the same
+        rate: one may emit at 10Hz and another at well under 1Hz, with gaps of
+        seconds between frames. This returns as soon as a frame parses, so a
+        fast unit still completes in milliseconds and only a silent one waits
+        out the full window.
+        """
+        self.ser.reset_input_buffer()
+        deadline = time.perf_counter() + window
+        buffer = b""
+        while time.perf_counter() < deadline:
+            buffer += self.ser.read(self.ser.in_waiting or 0)
+            # Any one complete frame proves the sensor is streaming. Waiting for
+            # a second frame to appear before trusting the first is not safe: at
+            # a slow output rate two frames may not arrive inside any reasonable
+            # window, and the check then rejects a perfectly healthy stream.
+            # A read that begins mid-stream still yields a leading fragment, but
+            # _parse rejects that on length, so no extra guard is needed.
+            if b"\r" in buffer:
+                for chunk in buffer.split(b"\r")[:-1]:
+                    if self._parse(chunk + b"\r") is not None:
+                        return True
+            time.sleep(0.02)
+        log.debug(f"_streaming: no valid frame in {window}s, saw {buffer!r}")
+        return False
+
+    @staticmethod
+    def _parse(line: bytes) -> float | None:
+        """
+        Parse one angle frame, rejecting anything that is not the sensor's
+        fixed-length angle format.
+
+        The sensor emits exactly '±xxx.xxx\\r' (9 bytes) for an angle. Length
+        matters: a read that starts mid-stream yields a truncated number that
+        still parses as a valid float ('6.122' out of '+136.122'), and a
+        temperature reply is '±tt.t\\r' (6 bytes) — both would otherwise be
+        accepted as a plausible declination and silently corrupt the data.
+        """
+        if len(line) != 9 or line[:1] not in (b"+", b"-") or not line.endswith(b"\r"):
+            return None
+        try:
+            return float(line.decode())
+        except (UnicodeDecodeError, ValueError):
+            return None
 
     def _command(self, command: bytes, settle: float = 0.3) -> bytes | None:
         """Send a 7-byte command and return the reply, or None if silent."""
@@ -195,10 +257,9 @@ class MiniTars:
                 log.debug("buffer_read: no data in queue")
             return None
 
-        # NOTE: read_until blocks until it sees "\r" or the port timeout expires.
-        # The port is opened without a timeout, so if the device never sends a
-        # "\r" this call never returns. Bracket it so the log shows whether we
-        # entered and failed to leave.
+        # read_until returns once it sees "\r" or the port timeout expires, so a
+        # line can come back truncated. _parse rejects anything that is not a
+        # whole angle frame rather than trusting float() to catch it.
         if self.verbose:
             log.debug(f"buffer_read: in_waiting={waiting}, entering read_until")
         start = time.perf_counter()
@@ -210,13 +271,12 @@ class MiniTars:
                 f"raw={line!r}"
             )
 
-        try:
-            value = float(line.decode())
-        except (UnicodeDecodeError, ValueError) as e:
+        value = self._parse(line)
+        if value is None:
             self.bad_line_count += 1
             log.warning(
-                f"buffer_read: undecodable line #{self.bad_line_count} "
-                f"({type(e).__name__}: {e}) raw={line!r}"
+                f"buffer_read: discarded frame #{self.bad_line_count} raw={line!r} "
+                "(not a whole '±xxx.xxx\\r' angle)"
             )
             return None
         if self.verbose:
