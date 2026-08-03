@@ -153,6 +153,17 @@ class Tars:
         # self.send("dec 512")
         # self.send("srate 11718")
 
+        # The device echoes every command back as ASCII on the same stream
+        # buffer_read decodes as samples. Measured on a DI-4108 (fw 8B), the
+        # commands above leave 51 bytes in the buffer -- an odd count, so
+        # without this flush the first ~25 readings are the text of these
+        # commands (which decodes to 6.25-9.94 V, since printable ASCII pairs
+        # land in 8224..32382 counts) and every sample after them is shifted
+        # by one byte for the rest of the session. "start" draws no echo, so
+        # flushing here is enough.
+        time.sleep(0.2)
+        self.ser.reset_input_buffer()
+
     def in_waiting(self) -> int:
         if self.testing:
             return 0
@@ -170,9 +181,14 @@ class Tars:
         if self.in_waiting() < 2:
             return None
         buffer = self.ser.read(2)
+        # The device returns 16-bit two's complement spanning the configured
+        # bipolar range, so a 0..+5 V coax signal uses only the positive half
+        # of the ±5 V range: 0 V -> 0 counts, +5 V -> +32767, 152.6 uV/LSB.
+        # Every range this device offers is bipolar, so there is no unipolar
+        # code that would win back the unused bit; ±5 V is still the tightest
+        # range that does not clip a 5 V input.
         return (
-            5
-            + Tars.RANGE_VOLT[channel >> 8]
+            Tars.RANGE_VOLT[channel >> 8]
             * int.from_bytes(buffer, byteorder="little", signed=True)
             / 32768
         )
