@@ -14,6 +14,9 @@ import math
 
 log = get_dec_logger()
 
+DEC_PORT_ENV = "THREEPIO_DEC_PORT"
+NATIVE_DEC_PORT = "/dev/serial0"
+
 
 def discovery():
     """Get a list of active com ports and scan for declinometer"""
@@ -25,8 +28,14 @@ def discovery():
         if "VID:PID=0403:6001" in p.hwid:
             declinometer = p.device
 
-    # See tars.discovery: a built-in COM port has no USB VID:PID to match on.
-    declinometer = os.environ.get("THREEPIO_DEC_PORT") or declinometer
+    # An explicit choice always wins. On a Raspberry Pi, prefer its stable
+    # /dev/serial0 alias over an enumerated FTDI adapter: the USB adapter may
+    # remain plugged in even when the sensor has moved to the GPIO UART.
+    explicit_port = os.environ.get(DEC_PORT_ENV)
+    if explicit_port:
+        declinometer = explicit_port
+    elif os.path.exists(NATIVE_DEC_PORT):
+        declinometer = NATIVE_DEC_PORT
 
     log.info(f"discovery: declinometer={declinometer}")
     return declinometer
