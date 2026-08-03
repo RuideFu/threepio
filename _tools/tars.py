@@ -25,6 +25,7 @@ class SignalDatum:
 
 DAQ_PORT_ENV = "THREEPIO_DAQ_PORT"
 DEC_PORT_ENV = "THREEPIO_DEC_PORT"
+NATIVE_DEC_PORT = "/dev/serial0"
 
 
 def discovery() -> tuple[str | None, str | None]:
@@ -39,13 +40,18 @@ def discovery() -> tuple[str | None, str | None]:
         if "VID:PID=0403:6001" in p.hwid:
             declinometer = p.device
 
-    # An explicit port always wins. Auto-detection matches on the USB VID:PID of
-    # the FTDI adapter, which a built-in COM port (or any non-FTDI adapter) does
-    # not have, so on those machines the port can only be chosen by name:
+    # An explicit port always wins. On a Raspberry Pi, prefer its stable
+    # /dev/serial0 alias over an enumerated FTDI adapter: the USB adapter may
+    # remain plugged in even when the sensor has moved to the GPIO UART.
+    # Other built-in/non-FTDI ports can still be selected by name:
     #     set THREEPIO_DEC_PORT=COM4        (Windows)
     #     export THREEPIO_DEC_PORT=/dev/... (macOS/Linux)
     dataq = os.environ.get(DAQ_PORT_ENV) or dataq
-    declinometer = os.environ.get(DEC_PORT_ENV) or declinometer
+    explicit_dec_port = os.environ.get(DEC_PORT_ENV)
+    if explicit_dec_port:
+        declinometer = explicit_dec_port
+    elif os.path.exists(NATIVE_DEC_PORT):
+        declinometer = NATIVE_DEC_PORT
 
     return dataq, declinometer
 
