@@ -184,17 +184,29 @@ class ObsDialog(QDialog):
         # Parse times; pattern = "HH:MM:SS"
         starting_ra = SuperClock.deformat_time_string(self.ui.start_time.text())
         ending_ra = SuperClock.deformat_time_string(self.ui.end_time.text())
-        if ending_ra < starting_ra:
-            ending_ra += 3600 * 24
-            self.show_warning("Assuming ending RA is the next day")
 
         # Calculate start and end times
         start_time = self.clock.ra_to_epoch_time(starting_ra)
-        end_time = (
-            start_time + 180
-            if self.obs.obs_type is ObsType.SPECTRUM
-            else self.clock.ra_to_epoch_time(ending_ra)
-        )
+        if self.obs.obs_type is ObsType.SPECTRUM:
+            # All spectra have a duration of 180 seconds
+            end_time = start_time + 180
+        else:
+            if ending_ra == starting_ra:
+                raise ValueError("Ending RA must differ from starting RA")
+            # ra_to_epoch_time maps an RA to its *next* transit, which for an
+            # ending RA numerically behind the starting RA can land before
+            # start_time. Anchor the end to the first ending-RA transit after
+            # the start instead, so an end past 00:00 runs into the next
+            # sidereal day as requested.
+            duration = SuperClock.sidereal_to_solar(
+                (ending_ra - starting_ra) % (3600 * 24)
+            )
+            end_time = start_time + duration
+            if ending_ra < starting_ra:
+                self.show_warning(
+                    f"Ending RA is on the next sidereal day; "
+                    f"observing for {duration / 3600:.1f} hours"
+                )
 
         # If no filename, use default
         filename = self.ui.file_name_value.text()
