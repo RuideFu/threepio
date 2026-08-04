@@ -121,6 +121,15 @@ class Threepio(QtWidgets.QMainWindow):
         self.ui.actionTesting.triggered.connect(self.set_state_testing)
         self.ui.actionLegacy.triggered.connect(self.toggle_state_legacy)
 
+        self.theme_action_group = QtGui.QActionGroup(self)
+        for action, scheme in (
+            (self.ui.actionThemeSystem, QtCore.Qt.ColorScheme.Unknown),
+            (self.ui.actionThemeLight, QtCore.Qt.ColorScheme.Light),
+            (self.ui.actionThemeDark, QtCore.Qt.ColorScheme.Dark),
+        ):
+            self.theme_action_group.addAction(action)
+            action.triggered.connect(lambda _=False, s=scheme: self.set_theme(s))
+
         self.ui.channel_dual_button.clicked.connect(
             lambda: self.set_channel_visibility(True, True)
         )
@@ -351,12 +360,16 @@ class Threepio(QtWidgets.QMainWindow):
         self.ui.testing_frame.show()
         self.mode = Threepio.Mode.TESTING
 
+    def set_theme(self, scheme: QtCore.Qt.ColorScheme):
+        """Set light/dark appearance; Unknown follows the system setting."""
+        QtGui.QGuiApplication.styleHints().setColorScheme(scheme)
+
     def toggle_state_legacy(self):
         """Makes Threepio look like the outgoing ERIRA DAQ software."""
         self.legacy_mode = not self.legacy_mode
         legacy_stylesheet = ""
         if self.legacy_mode:
-            legacy_stylesheet = "\nbackground-color:#00ff00; color:#ff0000"
+            legacy_stylesheet = "\n* { background-color:#00ff00; color:#ff0000 }"
         self.setStyleSheet(f"{self.base_stylesheet}{legacy_stylesheet}")
         url = QtCore.QUrl()
         self.beep_sound.setSource(

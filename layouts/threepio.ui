@@ -1055,10 +1055,20 @@
     <property name="title">
      <string>Mode</string>
     </property>
+    <widget class="QMenu" name="menuTheme">
+     <property name="title">
+      <string>Theme</string>
+     </property>
+     <addaction name="actionThemeSystem"/>
+     <addaction name="actionThemeLight"/>
+     <addaction name="actionThemeDark"/>
+    </widget>
     <addaction name="actionNormal"/>
     <addaction name="actionTesting"/>
     <addaction name="separator"/>
     <addaction name="actionLegacy"/>
+    <addaction name="separator"/>
+    <addaction name="menuTheme"/>
    </widget>
    <widget class="QMenu" name="menuObservation">
     <property name="title">
@@ -1175,6 +1185,33 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+I</string>
+   </property>
+  </action>
+  <action name="actionThemeSystem">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>System</string>
+   </property>
+  </action>
+  <action name="actionThemeLight">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Light</string>
+   </property>
+  </action>
+  <action name="actionThemeDark">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Dark</string>
    </property>
   </action>
  </widget>
