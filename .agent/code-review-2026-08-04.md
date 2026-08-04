@@ -3,7 +3,7 @@
 **Date:** 2026-08-04 · **Commit reviewed:** `fc8a2c8` (main, clean tree)
 **Method:** Full-codebase review (app, `_tools/`, `_dialogs/`, tests, data files, recent git history). Every finding below was verified against the current source; numeric claims about `DecCalc` were reproduced by executing the real class against the checked-in `dec-cal.txt`. Two claims surfaced during review did **not** survive verification and are noted at the end.
 
-**Fix status:** C1, C2, and C3 fixed 2026-08-04 (see inline notes). C4–C5 and all High findings open.
+**Fix status:** C1–C4 fixed 2026-08-04 (see inline notes). C5 and all High findings open.
 
 ---
 
@@ -82,6 +82,8 @@ def accept(self):
 The Get Info menu item is only enabled *while an observation is loaded* (`threepio.py:355`) and passes the live `self.obs` (`threepio.py:672`). `set_observation()` then calls `obs.set_name(...)` → `set_files()` → three fresh `MyPrecious`, whose constructor **truncates the files** (`precious.py:19`, `73-75`) — destroying all data recorded so far — and re-derives `start_time`/`end_time` from the widgets against the *current* LST (`obs_dialog.py:188-193`), pushing the live observation's schedule into the future so it silently stops recording.
 
 **Fix:** `return` after `self.close()` in info mode. Separately, `MyPrecious` should not truncate an existing file without an explicit overwrite decision (see H7).
+
+**✅ FIXED 2026-08-04:** `accept()` now returns immediately after `close()` in info mode (`obs_dialog.py:104-110`), with a comment explaining what the fall-through used to destroy. New test: `tests/obs_dialog_test.py` (offscreen `QApplication`; asserts info-mode accept never re-creates files, renames, or re-derives the schedule). The underlying hazard — `MyPrecious` truncating any existing file on construction — remains open under H7.
 
 ### C5. The midnight-wraparound guard is a no-op — end-before-start records zero data, silently
 
@@ -191,7 +193,7 @@ Edge case: `current_data_point` starts as `None` (`threepio.py:162`); if the dec
 - `tests/clock_test.py` (4 tests) covers `SuperClock` reasonably, though `test_sidereal_wraparound` only asserts `0 <= v < 86400`, which the implementation's `% 86400` guarantees trivially.
 - `tests/discovery_test.py` locks in the `/dev/serial0` precedence (see H5) rather than questioning it.
 
-**Highest-value missing tests** (each would have caught a Critical above): ~~`DecCalc.calculate_declination` against a descending table (C1)~~ — added 2026-08-04 as `tests/deccalc_test.py`; driving the `Observation` state machine end-to-end through every `Comm` verb (partially covered 2026-08-04: Survey end states in `tests/survey_test.py`, WAITING/schedule/footer in `tests/observation_state_test.py`; cal/bg transitions and alert-driven `next()` flow still untested); `ObsDialog.set_observation` RA→epoch conversion including end-before-start (C5); `MyPrecious` truncation semantics (C4/H7); `Survey.data_logic` band-crossing (Medium); `Timer.run_if_appropriate` under clock steps (H3).
+**Highest-value missing tests** (each would have caught a Critical above): ~~`DecCalc.calculate_declination` against a descending table (C1)~~ — added 2026-08-04 as `tests/deccalc_test.py`; driving the `Observation` state machine end-to-end through every `Comm` verb (partially covered 2026-08-04: Survey end states in `tests/survey_test.py`, WAITING/schedule/footer in `tests/observation_state_test.py`; cal/bg transitions and alert-driven `next()` flow still untested); `ObsDialog.set_observation` RA→epoch conversion including end-before-start (C5); `MyPrecious` truncation semantics (H7; the C4 dialog side is now covered by `tests/obs_dialog_test.py`); `Survey.data_logic` band-crossing (Medium); `Timer.run_if_appropriate` under clock steps (H3).
 
 ## Status vs. prior `.agent/` reviews
 

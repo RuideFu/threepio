@@ -103,7 +103,11 @@ class ObsDialog(QDialog):
 
     def accept(self):
         if self.info:
+            # Info mode is read-only: falling through to set_observation()
+            # would re-create the live observation's files (truncating them)
+            # and re-derive its schedule from the current sidereal time.
             self.close()
+            return
         try:
             self.clear_messages()
             if not self.confirmed:
