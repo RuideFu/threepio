@@ -159,7 +159,10 @@ class Observation:
                 return self.data_logic(data_point)
             # TODO: This logic should probably not be here
             elif self.obs_type is ObsType.SURVEY and not self.final_sweep_done:
-                if self.data_logic(data_point) in [
+                # Past end_time, only finish the sweep in progress. If the dish
+                # is between sweeps, stop now rather than let a boundary-jitter
+                # re-entry start recording a new (stub) sweep.
+                if self.outside or self.data_logic(data_point) in [
                     Comm.SEND_TEL_NORTH,
                     Comm.SEND_TEL_SOUTH,
                 ]:

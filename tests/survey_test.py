@@ -60,6 +60,19 @@ def test_final_sweep_start_cal_latches_despite_jitter():
     assert survey.communicate(point(dec=10.0), timestamp=2004.0) is Comm.START_CAL
 
 
+def test_past_end_time_between_sweeps_never_starts_new_sweep():
+    """Dec jitter at the band edge during the final turnaround must not start
+    a new sweep after end_time — that recorded a 2-point stub as the file's
+    last sweep."""
+    survey = make_survey_in_data_state()
+    sweeps_before = survey.sweep_number
+    # Dish is between sweeps (outside the band) when a noisy in-band reading
+    # arrives after end_time.
+    assert survey.communicate(point(dec=20.5), timestamp=2001.0) is Comm.START_CAL
+    assert survey.sweep_number == sweeps_before
+    assert survey.file_a.lines == []
+
+
 def test_no_data_written_after_final_sweep():
     survey = make_survey_in_data_state()
     assert survey.communicate(point(dec=10.0), timestamp=2001.0) is Comm.START_CAL
