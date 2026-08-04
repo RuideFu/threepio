@@ -32,6 +32,10 @@ class DecCalc:
         def set_fx(x_lines: list):
             y_decs = self.get_dec_list()
             self.fx = [self.XY(x.strip(), y) for x, y in zip(x_lines, y_decs)]
+            # The inclinometer can be mounted facing either way, so the raw
+            # readings may run ascending or descending as dec increases.
+            # calculate_declination expects ascending x, so normalize here.
+            self.fx.sort(key=lambda pair: pair.x)
 
         try:
             with open("dec-cal.txt", "r") as f:  # Get data from file
