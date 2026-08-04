@@ -201,7 +201,6 @@ class Observation:
 
     def start_calibration_1(self):
         self.state = State.CAL_1
-        self.start_time = time.time()
         self.cal_start = time.time()
         self.freq = self.cal_freq
         self.state_time_interval = (self.cal_start, self.cal_start + self.cal_dur)
@@ -218,6 +217,7 @@ class Observation:
     def start_data(self):
         self.state = State.DATA
         self.write("*")
+        self.data_start = time.time()
         self.freq = self.data_freq
         self.state_time_interval = (self.start_time, self.end_time)
 
@@ -285,9 +285,12 @@ class Observation:
             self.file_b.write("%.4f" % point.b)
 
     def write_meta(self):
+        # The footer is factual: data_start is when the DATA phase actually
+        # began, which can differ from the scheduled start_time.
+        factual_start = self.data_start if self.data_start is not None else self.start_time
         self.write("TELESCOPE: The Mighty Forty")
-        self.write("LOCAL START DATE: " + get_date(self.start_time))
-        self.write("LOCAL START TIME: " + get_time(self.start_time))
+        self.write("LOCAL START DATE: " + get_date(factual_start))
+        self.write("LOCAL START TIME: " + get_time(factual_start))
         self.write("LOCAL STOP DATE: " + get_date(self.end_time))
         self.write("LOCAL STOP TIME: " + get_time(self.end_time))
 

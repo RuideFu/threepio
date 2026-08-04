@@ -3,7 +3,7 @@
 **Date:** 2026-08-04 · **Commit reviewed:** `fc8a2c8` (main, clean tree)
 **Method:** Full-codebase review (app, `_tools/`, `_dialogs/`, tests, data files, recent git history). Every finding below was verified against the current source; numeric claims about `DecCalc` were reproduced by executing the real class against the checked-in `dec-cal.txt`. Two claims surfaced during review did **not** survive verification and are noted at the end.
 
-**Fix status:** C1 and C2 fixed 2026-08-04 (see inline notes). C3–C5 and all High findings open.
+**Fix status:** C1, C2, and C3 fixed 2026-08-04 (see inline notes). C4–C5 and all High findings open.
 
 ---
 
@@ -62,6 +62,8 @@ def start_calibration_1(self):
 - `write_meta()`'s `LOCAL START DATE/TIME` (`observation.py:289-290`) reports calibration start, not data start. (`stop()` similarly overwrites `end_time` at `observation.py:239`.)
 
 **Fix:** store cal/bg anchors in their own fields (`cal_start` already exists) and leave `start_time`/`end_time` as the user's schedule.
+
+**✅ FIXED 2026-08-04:** removed the clobber from `start_calibration_1()` — `start_time` stays the RA-derived schedule, so WAITING now holds until the scheduled transit (and, per the existing guard, still proceeds immediately on a late start — no stall). The previously-unused `data_start` field is now set in `start_data()`, and `write_meta` reports it, so the footer records the *factual* data start (confirmed requirement: footer stays factual). `stop()` already stamps `end_time` with the factual completion time, so the STOP lines were unchanged. Side benefit: Spectrum's data phase now runs its intended 180 s instead of an operator-paced duration. New tests: `tests/observation_state_test.py` (4 tests — schedule preserved through CAL_1, WAITING holds/releases around the scheduled start, no stall on late start, footer records factual start/stop).
 
 ### C4. One click on "Get Info" wipes the live observation's data files
 
@@ -189,7 +191,7 @@ Edge case: `current_data_point` starts as `None` (`threepio.py:162`); if the dec
 - `tests/clock_test.py` (4 tests) covers `SuperClock` reasonably, though `test_sidereal_wraparound` only asserts `0 <= v < 86400`, which the implementation's `% 86400` guarantees trivially.
 - `tests/discovery_test.py` locks in the `/dev/serial0` precedence (see H5) rather than questioning it.
 
-**Highest-value missing tests** (each would have caught a Critical above): ~~`DecCalc.calculate_declination` against a descending table (C1)~~ — added 2026-08-04 as `tests/deccalc_test.py`; driving the `Observation` state machine end-to-end through every `Comm` verb (C3; the Survey end-state slice of this is now covered by `tests/survey_test.py`); `ObsDialog.set_observation` RA→epoch conversion including end-before-start (C5); `MyPrecious` truncation semantics (C4/H7); `Survey.data_logic` band-crossing (Medium); `Timer.run_if_appropriate` under clock steps (H3).
+**Highest-value missing tests** (each would have caught a Critical above): ~~`DecCalc.calculate_declination` against a descending table (C1)~~ — added 2026-08-04 as `tests/deccalc_test.py`; driving the `Observation` state machine end-to-end through every `Comm` verb (partially covered 2026-08-04: Survey end states in `tests/survey_test.py`, WAITING/schedule/footer in `tests/observation_state_test.py`; cal/bg transitions and alert-driven `next()` flow still untested); `ObsDialog.set_observation` RA→epoch conversion including end-before-start (C5); `MyPrecious` truncation semantics (C4/H7); `Survey.data_logic` band-crossing (Medium); `Timer.run_if_appropriate` under clock steps (H3).
 
 ## Status vs. prior `.agent/` reviews
 
