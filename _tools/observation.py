@@ -157,7 +157,7 @@ class Observation:
             elif self.obs_type is ObsType.SURVEY and self.data_logic(
                 data_point
             ) not in [Comm.SEND_TEL_NORTH, Comm.SEND_TEL_SOUTH]:
-                return Comm.FINISH_SWEEP
+                return Comm.FINISHING_SWEEP
             else:
                 return Comm.START_CAL
         elif self.state == State.CAL_2:
