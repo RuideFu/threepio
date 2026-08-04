@@ -5,6 +5,14 @@ import datetime
 import time
 from astropy.time import Time
 from astropy.coordinates import EarthLocation
+from astropy.utils import iers
+
+# Offline operation: never fetch IERS Earth-rotation tables from the internet.
+# Use the tables bundled with astropy-iers-data and extrapolate (with a warning)
+# if the system date runs past them — ms-level UT1 error, negligible for us.
+iers.conf.auto_download = False
+iers.conf.auto_max_age = None
+iers.conf.iers_degraded_accuracy = "warn"
 
 SIDEREAL = 1.00273790935  # The number of sidereal seconds per second
 GB_LATITUDE = 38.437235  # North
