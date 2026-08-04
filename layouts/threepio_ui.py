@@ -17,11 +17,11 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QIcon, QImage, QKeySequence, QLinearGradient,
     QPainter, QPalette, QPixmap, QRadialGradient,
     QTransform)
-from PySide6.QtWidgets import (QApplication, QCheckBox, QDial, QFrame,
-    QGraphicsView, QGridLayout, QGroupBox, QHBoxLayout,
-    QLabel, QMainWindow, QMenu, QMenuBar,
-    QProgressBar, QPushButton, QSizePolicy, QSlider,
-    QSpacerItem, QWidget)
+from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDial,
+    QFrame, QGraphicsView, QGridLayout, QGroupBox,
+    QHBoxLayout, QLabel, QMainWindow, QMenu,
+    QMenuBar, QProgressBar, QPushButton, QSizePolicy,
+    QSlider, QSpacerItem, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -403,19 +403,29 @@ class Ui_MainWindow(object):
         self.stripchart_actions_layout = QHBoxLayout()
         self.stripchart_actions_layout.setSpacing(8)
         self.stripchart_actions_layout.setObjectName(u"stripchart_actions_layout")
-        self.toggle_channel_a_button = QPushButton(self.stripchart_control_group)
-        self.toggle_channel_a_button.setObjectName(u"toggle_channel_a_button")
-        self.toggle_channel_a_button.setCheckable(True)
-        self.toggle_channel_a_button.setChecked(True)
+        self.channel_dual_button = QPushButton(self.stripchart_control_group)
+        self.channel_button_group = QButtonGroup(MainWindow)
+        self.channel_button_group.setObjectName(u"channel_button_group")
+        self.channel_button_group.addButton(self.channel_dual_button)
+        self.channel_dual_button.setObjectName(u"channel_dual_button")
+        self.channel_dual_button.setCheckable(True)
+        self.channel_dual_button.setChecked(True)
 
-        self.stripchart_actions_layout.addWidget(self.toggle_channel_a_button)
+        self.stripchart_actions_layout.addWidget(self.channel_dual_button)
 
-        self.toggle_channel_b_button = QPushButton(self.stripchart_control_group)
-        self.toggle_channel_b_button.setObjectName(u"toggle_channel_b_button")
-        self.toggle_channel_b_button.setCheckable(True)
-        self.toggle_channel_b_button.setChecked(True)
+        self.channel_a_button = QPushButton(self.stripchart_control_group)
+        self.channel_button_group.addButton(self.channel_a_button)
+        self.channel_a_button.setObjectName(u"channel_a_button")
+        self.channel_a_button.setCheckable(True)
 
-        self.stripchart_actions_layout.addWidget(self.toggle_channel_b_button)
+        self.stripchart_actions_layout.addWidget(self.channel_a_button)
+
+        self.channel_b_button = QPushButton(self.stripchart_control_group)
+        self.channel_button_group.addButton(self.channel_b_button)
+        self.channel_b_button.setObjectName(u"channel_b_button")
+        self.channel_b_button.setCheckable(True)
+
+        self.stripchart_actions_layout.addWidget(self.channel_b_button)
 
         self.horizontalSpacer_6 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
@@ -426,7 +436,7 @@ class Ui_MainWindow(object):
 
         self.stripchart_actions_layout.addWidget(self.chart_clear_button)
 
-        self.stripchart_actions_layout.setStretch(2, 1)
+        self.stripchart_actions_layout.setStretch(3, 1)
 
         self.gridLayout_4.addLayout(self.stripchart_actions_layout, 3, 1, 1, 2)
 
@@ -570,9 +580,10 @@ class Ui_MainWindow(object):
         QWidget.setTabOrder(self.stripchart_dynamic_scale_checkbox, self.stripchart_max_voltage_slider)
         QWidget.setTabOrder(self.stripchart_max_voltage_slider, self.stripchart_grid_checkbox)
         QWidget.setTabOrder(self.stripchart_grid_checkbox, self.stripchart_grid_density_slider)
-        QWidget.setTabOrder(self.stripchart_grid_density_slider, self.toggle_channel_a_button)
-        QWidget.setTabOrder(self.toggle_channel_a_button, self.toggle_channel_b_button)
-        QWidget.setTabOrder(self.toggle_channel_b_button, self.chart_clear_button)
+        QWidget.setTabOrder(self.stripchart_grid_density_slider, self.channel_dual_button)
+        QWidget.setTabOrder(self.channel_dual_button, self.channel_a_button)
+        QWidget.setTabOrder(self.channel_a_button, self.channel_b_button)
+        QWidget.setTabOrder(self.channel_b_button, self.chart_clear_button)
         QWidget.setTabOrder(self.chart_clear_button, self.dec_view)
         QWidget.setTabOrder(self.dec_view, self.variance_dial)
         QWidget.setTabOrder(self.variance_dial, self.polarization_dial)
@@ -683,12 +694,12 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.stripchart_dynamic_scale_checkbox.setText(QCoreApplication.translate("MainWindow", u"Auto", None))
 #if QT_CONFIG(tooltip)
-        self.stripchart_max_voltage_slider.setToolTip(QCoreApplication.translate("MainWindow", u"Manual maximum voltage (\u00b1) when Auto is off.", None))
+        self.stripchart_max_voltage_slider.setToolTip(QCoreApplication.translate("MainWindow", u"Manual maximum voltage when Auto is off.", None))
 #endif // QT_CONFIG(tooltip)
 #if QT_CONFIG(tooltip)
-        self.stripchart_max_voltage_value_label.setToolTip(QCoreApplication.translate("MainWindow", u"Manual maximum voltage (\u00b1) when Auto is off.", None))
+        self.stripchart_max_voltage_value_label.setToolTip(QCoreApplication.translate("MainWindow", u"Manual maximum voltage when Auto is off.", None))
 #endif // QT_CONFIG(tooltip)
-        self.stripchart_max_voltage_value_label.setText(QCoreApplication.translate("MainWindow", u"\u00b15 V", None))
+        self.stripchart_max_voltage_value_label.setText(QCoreApplication.translate("MainWindow", u"5 V", None))
         self.stripchart_max_voltage_value_label.setProperty(u"role", QCoreApplication.translate("MainWindow", u"readout", None))
         self.stripchart_grid_label.setText(QCoreApplication.translate("MainWindow", u"Grid", None))
 #if QT_CONFIG(tooltip)
@@ -705,13 +716,17 @@ class Ui_MainWindow(object):
         self.stripchart_grid_density_value_label.setProperty(u"role", QCoreApplication.translate("MainWindow", u"readout", None))
         self.stripchart_channels_label.setText(QCoreApplication.translate("MainWindow", u"Channels", None))
 #if QT_CONFIG(tooltip)
-        self.toggle_channel_a_button.setToolTip(QCoreApplication.translate("MainWindow", u"Show or hide channel A.", None))
+        self.channel_dual_button.setToolTip(QCoreApplication.translate("MainWindow", u"Show both channels.", None))
 #endif // QT_CONFIG(tooltip)
-        self.toggle_channel_a_button.setText(QCoreApplication.translate("MainWindow", u"Toggle A", None))
+        self.channel_dual_button.setText(QCoreApplication.translate("MainWindow", u"Dual", None))
 #if QT_CONFIG(tooltip)
-        self.toggle_channel_b_button.setToolTip(QCoreApplication.translate("MainWindow", u"Show or hide channel B.", None))
+        self.channel_a_button.setToolTip(QCoreApplication.translate("MainWindow", u"Show only channel A.", None))
 #endif // QT_CONFIG(tooltip)
-        self.toggle_channel_b_button.setText(QCoreApplication.translate("MainWindow", u"Toggle B", None))
+        self.channel_a_button.setText(QCoreApplication.translate("MainWindow", u"A", None))
+#if QT_CONFIG(tooltip)
+        self.channel_b_button.setToolTip(QCoreApplication.translate("MainWindow", u"Show only channel B.", None))
+#endif // QT_CONFIG(tooltip)
+        self.channel_b_button.setText(QCoreApplication.translate("MainWindow", u"B", None))
 #if QT_CONFIG(tooltip)
         self.chart_clear_button.setToolTip(QCoreApplication.translate("MainWindow", u"Discard the currently plotted samples.", None))
 #endif // QT_CONFIG(tooltip)

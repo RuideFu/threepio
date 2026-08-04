@@ -623,7 +623,7 @@
             <item>
              <widget class="QSlider" name="stripchart_max_voltage_slider">
               <property name="toolTip">
-               <string>Manual maximum voltage (±) when Auto is off.</string>
+               <string>Manual maximum voltage when Auto is off.</string>
               </property>
               <property name="minimum">
                <number>1</number>
@@ -656,10 +656,10 @@
              </size>
             </property>
             <property name="toolTip">
-             <string>Manual maximum voltage (±) when Auto is off.</string>
+             <string>Manual maximum voltage when Auto is off.</string>
             </property>
             <property name="text">
-             <string>±5 V</string>
+             <string>5 V</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -754,14 +754,14 @@
            </widget>
           </item>
           <item row="3" column="1" colspan="2">
-           <layout class="QHBoxLayout" name="stripchart_actions_layout" stretch="0,0,1,0">
+           <layout class="QHBoxLayout" name="stripchart_actions_layout" stretch="0,0,0,1,0">
             <property name="spacing">
              <number>8</number>
             </property>
             <item>
-             <widget class="QPushButton" name="toggle_channel_a_button">
+             <widget class="QPushButton" name="channel_dual_button">
               <property name="toolTip">
-               <string>Show or hide channel A.</string>
+               <string>Show both channels.</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -770,24 +770,43 @@
                <bool>true</bool>
               </property>
               <property name="text">
-               <string>Toggle A</string>
+               <string>Dual</string>
               </property>
+              <attribute name="buttonGroup">
+               <string notr="true">channel_button_group</string>
+              </attribute>
              </widget>
             </item>
             <item>
-             <widget class="QPushButton" name="toggle_channel_b_button">
+             <widget class="QPushButton" name="channel_a_button">
               <property name="toolTip">
-               <string>Show or hide channel B.</string>
+               <string>Show only channel A.</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
               </property>
-              <property name="checked">
+              <property name="text">
+               <string>A</string>
+              </property>
+              <attribute name="buttonGroup">
+               <string notr="true">channel_button_group</string>
+              </attribute>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="channel_b_button">
+              <property name="toolTip">
+               <string>Show only channel B.</string>
+              </property>
+              <property name="checkable">
                <bool>true</bool>
               </property>
               <property name="text">
-               <string>Toggle B</string>
+               <string>B</string>
               </property>
+              <attribute name="buttonGroup">
+               <string notr="true">channel_button_group</string>
+              </attribute>
              </widget>
             </item>
             <item>
@@ -1172,8 +1191,9 @@
    <tabstop>stripchart_max_voltage_slider</tabstop>
    <tabstop>stripchart_grid_checkbox</tabstop>
    <tabstop>stripchart_grid_density_slider</tabstop>
-   <tabstop>toggle_channel_a_button</tabstop>
-   <tabstop>toggle_channel_b_button</tabstop>
+   <tabstop>channel_dual_button</tabstop>
+   <tabstop>channel_a_button</tabstop>
+   <tabstop>channel_b_button</tabstop>
    <tabstop>chart_clear_button</tabstop>
    <tabstop>dec_view</tabstop>
   <tabstop>variance_dial</tabstop>
@@ -1201,4 +1221,7 @@
    </hints>
   </connection>
  </connections>
+ <buttongroups>
+  <buttongroup name="channel_button_group"/>
+ </buttongroups>
 </ui>

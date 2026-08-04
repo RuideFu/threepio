@@ -121,8 +121,15 @@ class Threepio(QtWidgets.QMainWindow):
         self.ui.actionTesting.triggered.connect(self.set_state_testing)
         self.ui.actionLegacy.triggered.connect(self.toggle_state_legacy)
 
-        self.ui.toggle_channel_a_button.toggled.connect(self.toggle_channel_a)
-        self.ui.toggle_channel_b_button.toggled.connect(self.toggle_channel_b)
+        self.ui.channel_dual_button.clicked.connect(
+            lambda: self.set_channel_visibility(True, True)
+        )
+        self.ui.channel_a_button.clicked.connect(
+            lambda: self.set_channel_visibility(True, False)
+        )
+        self.ui.channel_b_button.clicked.connect(
+            lambda: self.set_channel_visibility(False, True)
+        )
         self.ui.chart_clear_button.clicked.connect(self.clear_stripchart)
 
         # Bleeps and bloops
@@ -494,8 +501,7 @@ class Threepio(QtWidgets.QMainWindow):
         self.update_stripchart_grid_density()
         self.toggle_stripchart_dynamic_scale()
         self.toggle_stripchart_grid()
-        self.toggle_channel_a(self.channel_visibility[0])
-        self.toggle_channel_b(self.channel_visibility[1])
+        self.set_channel_visibility(*self.channel_visibility)
 
         legend = self.chart.legend()
         if legend is not None:
@@ -558,15 +564,14 @@ class Threepio(QtWidgets.QMainWindow):
         except IndexError:  # No data yet
             pass
 
-    def toggle_channel_a(self, checked: bool):
-        _, channel_b_visible = self.channel_visibility
-        self.channel_visibility = (checked, channel_b_visible)
-        self.ui.toggle_channel_a_button.setChecked(checked)
-
-    def toggle_channel_b(self, checked: bool):
-        channel_a_visible, _ = self.channel_visibility
-        self.channel_visibility = (channel_a_visible, checked)
-        self.ui.toggle_channel_b_button.setChecked(checked)
+    def set_channel_visibility(self, show_a: bool, show_b: bool):
+        self.channel_visibility = (show_a, show_b)
+        if show_a and show_b:
+            self.ui.channel_dual_button.setChecked(True)
+        elif show_a:
+            self.ui.channel_a_button.setChecked(True)
+        else:
+            self.ui.channel_b_button.setChecked(True)
 
     def clear_stripchart(self):
         self.should_clear_stripchart = True
@@ -585,7 +590,7 @@ class Threepio(QtWidgets.QMainWindow):
             self.ui.stripchart_max_voltage_slider.value()
         )
         self.ui.stripchart_max_voltage_value_label.setText(
-            f"±{self.stripchart_manual_max_voltage:.0f} V"
+            f"{self.stripchart_manual_max_voltage:.0f} V"
         )
         self.update_stripchart_axes()
 
@@ -610,11 +615,11 @@ class Threepio(QtWidgets.QMainWindow):
         self.update_stripchart_axes()
 
     def calculate_stripchart_voltage_range(self):
-        max_abs_voltage = 0.0
+        max_voltage = 0.0
         for series in [self.stripchart_series_a, self.stripchart_series_b]:
             for point in series.points():
-                max_abs_voltage = max(max_abs_voltage, abs(point.x()))
-        return max(max_abs_voltage, self.stripchart_min_voltage_range)
+                max_voltage = max(max_voltage, point.x())
+        return max(max_voltage, self.stripchart_min_voltage_range)
 
     def update_stripchart_axes(self):
         if self.stripchart_dynamic_scale_enabled:
@@ -623,20 +628,20 @@ class Threepio(QtWidgets.QMainWindow):
             max_voltage = max(
                 self.stripchart_manual_max_voltage, self.stripchart_min_voltage_range
             )
-        self.axis_x.setMin(-max_voltage)
+        self.axis_x.setMin(0.0)
         self.axis_x.setMax(max_voltage)
         if not self.stripchart_grid_enabled:
             self.axis_x.setVisible(False)
             self.axis_y.setVisible(False)
 
         x_divisions = max(1, self.stripchart_grid_density)
-        volts_per_div = (max_voltage * 2) / x_divisions
+        volts_per_div = max_voltage / x_divisions
         self.ui.stripchart_grid_density_value_label.setText(
             f"{volts_per_div:.1f} V/div"
         )
 
         y_range = self.axis_y.max() - self.axis_y.min()
-        x_range = max_voltage * 2
+        x_range = max_voltage
         plot_area = self.chart.plotArea()
         if y_range > 0 and x_range > 0 and plot_area.width() > 0 and plot_area.height() > 0:
             y_divisions = max(
