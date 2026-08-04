@@ -72,6 +72,10 @@ class Observation:
 
         self.sweep_number = -1
 
+        # Latched once a survey's final sweep completes so communicate() keeps
+        # returning START_CAL no matter what the (un-stopped) dish does next
+        self.final_sweep_done = False
+
         # File interface
         self.file_a = None
         self.file_b = None
@@ -154,9 +158,13 @@ class Observation:
             elif timestamp < self.end_time:
                 return self.data_logic(data_point)
             # TODO: This logic should probably not be here
-            elif self.obs_type is ObsType.SURVEY and self.data_logic(
-                data_point
-            ) not in [Comm.SEND_TEL_NORTH, Comm.SEND_TEL_SOUTH]:
+            elif self.obs_type is ObsType.SURVEY and not self.final_sweep_done:
+                if self.data_logic(data_point) in [
+                    Comm.SEND_TEL_NORTH,
+                    Comm.SEND_TEL_SOUTH,
+                ]:
+                    self.final_sweep_done = True
+                    return Comm.START_CAL
                 return Comm.FINISHING_SWEEP
             else:
                 return Comm.START_CAL

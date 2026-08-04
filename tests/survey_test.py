@@ -46,3 +46,23 @@ def test_during_data_in_band_records_point():
     survey.outside = False
     assert survey.communicate(point(dec=30.0), timestamp=1500.0) is Comm.NO_ACTION
     assert survey.file_a.lines and survey.file_b.lines
+
+
+def test_final_sweep_start_cal_latches_despite_jitter():
+    """A dish that is never stopped keeps crossing the dec limit; the
+    transmission must not flap back to FINISHING_SWEEP, or every crossing
+    re-spawns the 'STOP the telescope' dialog set."""
+    survey = make_survey_in_data_state()
+    survey.outside = False
+    assert survey.communicate(point(dec=30.0), timestamp=2001.0) is Comm.FINISHING_SWEEP
+    assert survey.communicate(point(dec=10.0), timestamp=2002.0) is Comm.START_CAL
+    assert survey.communicate(point(dec=30.0), timestamp=2003.0) is Comm.START_CAL
+    assert survey.communicate(point(dec=10.0), timestamp=2004.0) is Comm.START_CAL
+
+
+def test_no_data_written_after_final_sweep():
+    survey = make_survey_in_data_state()
+    assert survey.communicate(point(dec=10.0), timestamp=2001.0) is Comm.START_CAL
+    survey.communicate(point(dec=30.0), timestamp=2002.0)
+    survey.communicate(point(dec=30.0), timestamp=2003.0)
+    assert survey.file_a.lines == []

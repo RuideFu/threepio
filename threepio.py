@@ -258,27 +258,21 @@ class Threepio(QtWidgets.QMainWindow):
                             Alert("Is the frequency set to 1319.5MHz?", "Yes"),
                         ] + alerts
 
-                def callback():
-                    self.scheduler.reset_timer_anchors()
-                    assert self.obs is not None
-                    self.obs.next()
-                    self.message("Taking calibration data!!!")
-
-                self.alert(*alerts, callback=callback)
+                self.alert(
+                    *alerts,
+                    callback=self.make_advance_obs_callback(
+                        "Taking calibration data!!!"
+                    ),
+                )
                 self.completed_one_calibration = True  # Only alert on second cal
 
             elif transmission is Comm.START_BG:
-
-                def callback():
-                    self.scheduler.reset_timer_anchors()
-                    assert self.obs is not None
-                    self.obs.next()
-                    self.message("Taking background data!!!")
-
                 self.alert(
                     Alert("Turn the calibration switches OFF", "Okay"),
                     Alert("Are the calibration switches OFF?", "Yes"),
-                    callback=callback,
+                    callback=self.make_advance_obs_callback(
+                        "Taking background data!!!"
+                    ),
                 )
 
         # print(transmission)
@@ -320,6 +314,22 @@ class Threepio(QtWidgets.QMainWindow):
             self.beep(message="update_data")
 
         self.previous_transmission = transmission
+
+    def make_advance_obs_callback(self, message: str) -> Callable[[], None]:
+        """Build an alert callback that advances the observation only if it is
+        still in the state the alert was spawned for, so a duplicate or stale
+        dialog cannot advance the state machine a second time."""
+        assert self.obs is not None
+        spawn_state = self.obs.state
+
+        def callback():
+            if self.obs is None or self.obs.state is not spawn_state:
+                return
+            self.scheduler.reset_timer_anchors()
+            self.obs.next()
+            self.message(message)
+
+        return callback
 
     def set_state_normal(self):
         self.ui.actionNormal.setChecked(True)
