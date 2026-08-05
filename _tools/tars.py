@@ -32,7 +32,7 @@ NATIVE_DEC_PORT = "/dev/serial0"
 # the DI-2108P offer unipolar ranges that need a different conversion formula
 # entirely, so decoding one of those with this table is silently wrong.
 DAQ_MODEL = "4108"
-DEFAULT_RANGE_VOLT = 5  # Tightest range that does not clip a 0..5 V coax signal
+DEFAULT_RANGE_VOLT = 10  # Accommodates the receiver's signal above 5 V
 
 
 def discovery() -> tuple[str | None, str | None]:
@@ -167,14 +167,15 @@ class Tars:
     def command(self, command: str) -> str | None:
         """
         Send one command and return the device's echo, or None if none arrived
-        within COMMAND_TIMEOUT. Every command echoes while the device is not
-        scanning, as "<command> <response><CR>".
+        within COMMAND_TIMEOUT. Replies may be padded with NUL bytes after the
+        terminating CR; because read_until() leaves that padding buffered, it
+        can appear at the beginning of the next reply.
         """
         self.send(command)
         echo = self.ser.read_until(b"\r")
         if not echo.endswith(b"\r"):
             return None
-        return echo.decode(errors="replace").strip()
+        return echo.decode(errors="replace").strip("\x00 \t\r\n")
 
     @staticmethod
     def _matches(echo: str | None, command: str) -> bool:
@@ -211,10 +212,7 @@ class Tars:
         self._drain()
         self.acquiring = False
 
-        commands = [
-            "encode 0",  # 0 = binary, 1 = ascii
-            "ps 0",  # Small pocketsize for responsiveness
-        ]
+        commands = ["ps 0"]  # Small pocketsize for responsiveness
         commands += [f"slist {i} {word}" for i, word in enumerate(self.channels)]
         # Sample rate is a throughput on this device, not a per-channel rate:
         # 60,000,000/(srate * dec) = 60,000,000/(1171 * 512) = 100 Hz total,
@@ -229,6 +227,7 @@ class Tars:
             # -- printable ASCII pairs land in 8224..32382 counts, and an odd
             # byte count shifts every later sample for the rest of the session.
             self.parent.log("DataQ is not echoing commands; configuring blind", warning=True)
+            self.send("encode 0")
             for command in commands:
                 self.send(command)
             time.sleep(0.2)
@@ -240,6 +239,17 @@ class Tars:
             self.parent.log(
                 f"DataQ reports {model!r}, not a DI-{DAQ_MODEL}; "
                 f"voltage ranges will be misread",
+                warning=True,
+            )
+            ok = False
+
+        # The DI-4108 applies "encode 0" but does not echo it. Some firmware
+        # revisions may echo, so accept either silence or the expected reply,
+        # while still rejecting an explicit unexpected response.
+        encode_echo = self.command("encode 0")
+        if encode_echo is not None and not self._matches(encode_echo, "encode 0"):
+            self.parent.log(
+                f"DataQ did not confirm 'encode 0' (got {encode_echo!r})",
                 warning=True,
             )
             ok = False
@@ -273,11 +283,10 @@ class Tars:
             return None
         buffer = self.ser.read(2)
         # The device returns 16-bit two's complement spanning the configured
-        # bipolar range, so a 0..+5 V coax signal uses only the positive half
-        # of the ±5 V range: 0 V -> 0 counts, +5 V -> +32767, 152.6 uV/LSB.
+        # bipolar range, so a positive coax signal uses only the positive half
+        # of its configured range: 0 V -> 0 counts, +FS -> +32767.
         # Every range this device offers is bipolar, so there is no unipolar
-        # code that would win back the unused bit; ±5 V is still the tightest
-        # range that does not clip a 5 V input.
+        # code that would win back the unused bit.
         return (
             range_volt(channel)
             * int.from_bytes(buffer, byteorder="little", signed=True)

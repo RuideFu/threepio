@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 import _tools.tars as tars
-from _tools.tars import DAQ_MODEL, Tars, range_volt, slist_word
+from _tools.tars import DAQ_MODEL, DEFAULT_RANGE_VOLT, Tars, range_volt, slist_word
 
 
 class FakeParent:
@@ -88,13 +88,25 @@ def _config_commands(serial):
     return [command for command in serial.written if command not in ("stop", "info 1")]
 
 
+def _expected_config_commands():
+    return [
+        "encode 0",
+        "ps 0",
+        f"slist 0 {slist_word(0)}",
+        f"slist 1 {slist_word(1)}",
+        "dec 512",
+        "srate 1171",
+    ]
+
+
 # - MARK: scan list words
 
 
 def test_slist_word_packs_channel_and_range():
     # Bits 3:0 are the channel, bits 11:8 the range code; +/-5 V is code 1.
-    assert slist_word(0) == 0x0100
-    assert slist_word(1) == 0x0101
+    assert slist_word(0) == slist_word(0, volts=DEFAULT_RANGE_VOLT)
+    assert slist_word(0, volts=5) == 0x0100
+    assert slist_word(1, volts=5) == 0x0101
     assert slist_word(1, volts=10) == 0x0001
     assert slist_word(7, volts=0.2) == 0x0507
 
@@ -122,7 +134,7 @@ def test_range_volt_round_trips_every_documented_range(code, volts):
 def test_buffer_read_decodes_the_documented_adc_coding(raw, expected):
     daq, _, serial = _tars()
     serial.buffer = bytearray(raw)
-    assert daq.buffer_read(slist_word(0)) == pytest.approx(expected)
+    assert daq.buffer_read(slist_word(0, volts=5)) == pytest.approx(expected)
 
 
 def test_buffer_read_returns_none_without_a_whole_sample():
@@ -141,19 +153,12 @@ def test_setup_verifies_the_model_and_every_configuration_command():
     assert parent.warnings() == []
     assert serial.written[0] == "stop"
     assert "info 1" in serial.written
-    assert _config_commands(serial) == [
-        "encode 0",
-        "ps 0",
-        "slist 0 256",
-        "slist 1 257",
-        "dec 512",
-        "srate 1171",
-    ]
+    assert _config_commands(serial) == _expected_config_commands()
 
 
 def test_setup_reports_the_configured_range():
     _, parent, _ = _tars()
-    assert any("±5 V" in message for message, _ in parent.logged)
+    assert any(f"±{DEFAULT_RANGE_VOLT} V" in message for message, _ in parent.logged)
 
 
 def test_setup_warns_when_the_model_is_not_a_4108():
@@ -166,10 +171,11 @@ def test_setup_warns_when_the_model_is_not_a_4108():
 
 
 def test_setup_warns_when_a_range_command_is_not_confirmed():
-    daq, parent, _ = _tars(drop=["slist 1 257"])
+    command = f"slist 1 {slist_word(1)}"
+    daq, parent, _ = _tars(drop=[command])
 
     assert daq.configured is False
-    assert any("slist 1 257" in message for message in parent.warnings())
+    assert any(command in message for message in parent.warnings())
 
 
 def test_setup_configures_blind_when_the_device_does_not_echo():
@@ -179,14 +185,7 @@ def test_setup_configures_blind_when_the_device_does_not_echo():
     assert any("not echoing" in message for message in parent.warnings())
     # Still fully configured, and the buffer flushed, so behavior is no worse
     # than before echo verification existed.
-    assert _config_commands(serial) == [
-        "encode 0",
-        "ps 0",
-        "slist 0 256",
-        "slist 1 257",
-        "dec 512",
-        "srate 1171",
-    ]
+    assert _config_commands(serial) == _expected_config_commands()
     assert serial.in_waiting == 0
 
 
@@ -208,8 +207,18 @@ def test_setup_tolerates_crlf_terminated_echoes():
     assert parent.warnings() == []
 
 
+def test_setup_tolerates_silent_encode_and_nul_padded_echoes():
+    # The real DI-4108 does not echo "encode 0" and commonly appends a NUL
+    # after CR. read_until(CR) leaves that byte at the front of the next echo.
+    daq, parent, _ = _tars(drop=["encode 0"], eol="\r\x00")
+
+    assert daq.configured is True
+    assert parent.warnings() == []
+
+
 def test_read_latest_decodes_both_channels():
     daq, _, serial = _tars()
+    daq.channels = [slist_word(0, volts=5), slist_word(1, volts=5)]
     # Two scans of (channel A, channel B), little-endian, +/-5 V range.
     # Two scans of (channel A, channel B), little-endian, +/-5 V range. The
     # first decodes to (2.5, 1.25) and must be discarded in favor of the second.

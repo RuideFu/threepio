@@ -223,9 +223,14 @@ class Threepio(QtWidgets.QMainWindow):
         minitars_datum = self.minitars.read_latest()  # Get data from Arduino
         sidereal_timestamp = self.clock.get_sidereal_seconds()
 
-        # If data was available above, save it
-        if tars_datum is not None and minitars_datum is not None:
+        # The two devices stream independently. Keep the most recent
+        # declination rather than requiring both serial frames to land during
+        # the same 10 ms tick; otherwise a slow or disconnected declinometer
+        # suppresses every valid DATAQ voltage reading.
+        if minitars_datum is not None:
             self.current_dec = self.dec_calc.calculate_declination(minitars_datum)
+
+        if tars_datum is not None:
             self.current_data_point = DataPoint(  # Create data point
                 float(sidereal_timestamp),  # RA
                 float(self.current_dec),  # Dec
