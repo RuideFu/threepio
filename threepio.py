@@ -44,6 +44,10 @@ class Threepio(QtWidgets.QMainWindow):
     RED = 0xFF5252
     MIN_WIDTH = 860
 
+    # The voltage range slider is integer-only, so it counts tenths of a volt.
+    VOLTAGE_SLIDER_STEPS_PER_VOLT = 10
+    VOLTAGE_SLIDER_MAX_VOLTS = 15
+
     class Mode(Enum):
         NORMAL = 0
         TESTING = 1
@@ -82,8 +86,10 @@ class Threepio(QtWidgets.QMainWindow):
         self.stripchart_dynamic_scale_enabled = True
         self.stripchart_grid_enabled = False
         self.stripchart_grid_density = 8
+        self.stripchart_manual_min_voltage = 0.0
         self.stripchart_manual_max_voltage = 5.0
         self.stripchart_min_voltage_range = 1.0
+        self.initialize_voltage_range_slider()
         self.axis_x = QtCharts.QValueAxis()
         self.axis_y = QtCharts.QValueAxis()
         self.chart = QtCharts.QChart()
@@ -99,8 +105,8 @@ class Threepio(QtWidgets.QMainWindow):
         self.ui.stripchart_dynamic_scale_checkbox.toggled.connect(
             self.toggle_stripchart_dynamic_scale
         )
-        self.ui.stripchart_max_voltage_slider.valueChanged.connect(
-            self.update_stripchart_max_voltage
+        self.ui.stripchart_voltage_range_slider.valuesChanged.connect(
+            self.update_stripchart_voltage_range
         )
         self.ui.stripchart_grid_checkbox.toggled.connect(self.toggle_stripchart_grid)
         self.ui.stripchart_grid_density_slider.valueChanged.connect(
@@ -515,7 +521,7 @@ class Threepio(QtWidgets.QMainWindow):
         self.stripchart_series_b.attachAxis(self.axis_x)
         self.stripchart_series_a.attachAxis(self.axis_y)
         self.stripchart_series_b.attachAxis(self.axis_y)
-        self.update_stripchart_max_voltage()
+        self.update_stripchart_voltage_range()
         self.update_stripchart_grid_density()
         self.toggle_stripchart_dynamic_scale()
         self.toggle_stripchart_grid()
@@ -594,21 +600,35 @@ class Threepio(QtWidgets.QMainWindow):
     def clear_stripchart(self):
         self.should_clear_stripchart = True
 
+    def initialize_voltage_range_slider(self):
+        slider = self.ui.stripchart_voltage_range_slider
+        steps = self.VOLTAGE_SLIDER_STEPS_PER_VOLT
+        slider.setRange(0, self.VOLTAGE_SLIDER_MAX_VOLTS * steps)
+        slider.setMinimumSpan(round(self.stripchart_min_voltage_range * steps))
+        slider.setTickInterval(steps)
+        slider.setPageStep(steps)
+        slider.setValues(
+            round(self.stripchart_manual_min_voltage * steps),
+            round(self.stripchart_manual_max_voltage * steps),
+        )
+
     def toggle_stripchart_dynamic_scale(self):
         self.stripchart_dynamic_scale_enabled = (
             self.ui.stripchart_dynamic_scale_checkbox.isChecked()
         )
         manual_visible = not self.stripchart_dynamic_scale_enabled
-        self.ui.stripchart_max_voltage_slider.setVisible(manual_visible)
-        self.ui.stripchart_max_voltage_value_label.setVisible(manual_visible)
+        self.ui.stripchart_voltage_range_slider.setVisible(manual_visible)
+        self.ui.stripchart_voltage_range_value_label.setVisible(manual_visible)
         self.update_stripchart_axes()
 
-    def update_stripchart_max_voltage(self):
-        self.stripchart_manual_max_voltage = float(
-            self.ui.stripchart_max_voltage_slider.value()
-        )
-        self.ui.stripchart_max_voltage_value_label.setText(
-            f"{self.stripchart_manual_max_voltage:.0f} V"
+    def update_stripchart_voltage_range(self):
+        low, high = self.ui.stripchart_voltage_range_slider.values()
+        steps = self.VOLTAGE_SLIDER_STEPS_PER_VOLT
+        self.stripchart_manual_min_voltage = low / steps
+        self.stripchart_manual_max_voltage = high / steps
+        self.ui.stripchart_voltage_range_value_label.setText(
+            f"{self.stripchart_manual_min_voltage:.1f}"
+            f"–{self.stripchart_manual_max_voltage:.1f} V"
         )
         self.update_stripchart_axes()
 
@@ -632,34 +652,49 @@ class Threepio(QtWidgets.QMainWindow):
         self.stripchart_grid_density = self.ui.stripchart_grid_density_slider.value()
         self.update_stripchart_axes()
 
+    def enforce_min_voltage_span(self, min_voltage: float, max_voltage: float):
+        """Widen a voltage window that is too narrow to read, keeping it above 0V."""
+        deficit = self.stripchart_min_voltage_range - (max_voltage - min_voltage)
+        if deficit > 0:
+            min_voltage = max(0.0, min_voltage - deficit / 2)
+            max_voltage = min_voltage + self.stripchart_min_voltage_range
+        return min_voltage, max_voltage
+
     def calculate_stripchart_voltage_range(self):
-        max_voltage = 0.0
-        for series in [self.stripchart_series_a, self.stripchart_series_b]:
-            for point in series.points():
-                max_voltage = max(max_voltage, point.x())
-        return max(max_voltage, self.stripchart_min_voltage_range)
+        """Fit both ends of the axis to the data, but never show below 0V."""
+        voltages = [
+            point.x()
+            for series in [self.stripchart_series_a, self.stripchart_series_b]
+            for point in series.points()
+        ]
+        if not voltages:
+            return 0.0, self.stripchart_min_voltage_range
+        min_voltage = max(0.0, min(voltages))
+        return self.enforce_min_voltage_span(
+            min_voltage, max(max(voltages), min_voltage)
+        )
 
     def update_stripchart_axes(self):
         if self.stripchart_dynamic_scale_enabled:
-            max_voltage = self.calculate_stripchart_voltage_range()
+            min_voltage, max_voltage = self.calculate_stripchart_voltage_range()
         else:
-            max_voltage = max(
-                self.stripchart_manual_max_voltage, self.stripchart_min_voltage_range
+            min_voltage, max_voltage = self.enforce_min_voltage_span(
+                self.stripchart_manual_min_voltage, self.stripchart_manual_max_voltage
             )
-        self.axis_x.setMin(0.0)
+        self.axis_x.setMin(min_voltage)
         self.axis_x.setMax(max_voltage)
         if not self.stripchart_grid_enabled:
             self.axis_x.setVisible(False)
             self.axis_y.setVisible(False)
 
         x_divisions = max(1, self.stripchart_grid_density)
-        volts_per_div = max_voltage / x_divisions
+        volts_per_div = (max_voltage - min_voltage) / x_divisions
         self.ui.stripchart_grid_density_value_label.setText(
             f"{volts_per_div:.1f} V/div"
         )
 
         y_range = self.axis_y.max() - self.axis_y.min()
-        x_range = max_voltage
+        x_range = max_voltage - min_voltage
         plot_area = self.chart.plotArea()
         if y_range > 0 and x_range > 0 and plot_area.width() > 0 and plot_area.height() > 0:
             y_divisions = max(

@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDial,
     QMenuBar, QProgressBar, QPushButton, QSizePolicy,
     QSlider, QSpacerItem, QWidget)
 
+from _tools.range_slider import RangeSlider
+
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
@@ -346,27 +348,21 @@ class Ui_MainWindow(object):
 
         self.stripchart_voltage_layout.addWidget(self.stripchart_dynamic_scale_checkbox)
 
-        self.stripchart_max_voltage_slider = QSlider(self.stripchart_control_group)
-        self.stripchart_max_voltage_slider.setObjectName(u"stripchart_max_voltage_slider")
-        self.stripchart_max_voltage_slider.setMinimum(1)
-        self.stripchart_max_voltage_slider.setMaximum(15)
-        self.stripchart_max_voltage_slider.setValue(5)
-        self.stripchart_max_voltage_slider.setOrientation(Qt.Horizontal)
-        self.stripchart_max_voltage_slider.setTickPosition(QSlider.TicksBelow)
-        self.stripchart_max_voltage_slider.setTickInterval(1)
+        self.stripchart_voltage_range_slider = RangeSlider(self.stripchart_control_group)
+        self.stripchart_voltage_range_slider.setObjectName(u"stripchart_voltage_range_slider")
 
-        self.stripchart_voltage_layout.addWidget(self.stripchart_max_voltage_slider)
+        self.stripchart_voltage_layout.addWidget(self.stripchart_voltage_range_slider)
 
         self.stripchart_voltage_layout.setStretch(1, 1)
 
         self.gridLayout_4.addLayout(self.stripchart_voltage_layout, 1, 1, 1, 1)
 
-        self.stripchart_max_voltage_value_label = QLabel(self.stripchart_control_group)
-        self.stripchart_max_voltage_value_label.setObjectName(u"stripchart_max_voltage_value_label")
-        self.stripchart_max_voltage_value_label.setMinimumSize(QSize(56, 0))
-        self.stripchart_max_voltage_value_label.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+        self.stripchart_voltage_range_value_label = QLabel(self.stripchart_control_group)
+        self.stripchart_voltage_range_value_label.setObjectName(u"stripchart_voltage_range_value_label")
+        self.stripchart_voltage_range_value_label.setMinimumSize(QSize(80, 0))
+        self.stripchart_voltage_range_value_label.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
 
-        self.gridLayout_4.addWidget(self.stripchart_max_voltage_value_label, 1, 2, 1, 1)
+        self.gridLayout_4.addWidget(self.stripchart_voltage_range_value_label, 1, 2, 1, 1)
 
         self.stripchart_grid_label = QLabel(self.stripchart_control_group)
         self.stripchart_grid_label.setObjectName(u"stripchart_grid_label")
@@ -589,8 +585,8 @@ class Ui_MainWindow(object):
         self.menuObservation.setObjectName(u"menuObservation")
         MainWindow.setMenuBar(self.menubar)
         QWidget.setTabOrder(self.stripchart_speed_slider, self.stripchart_dynamic_scale_checkbox)
-        QWidget.setTabOrder(self.stripchart_dynamic_scale_checkbox, self.stripchart_max_voltage_slider)
-        QWidget.setTabOrder(self.stripchart_max_voltage_slider, self.stripchart_grid_checkbox)
+        QWidget.setTabOrder(self.stripchart_dynamic_scale_checkbox, self.stripchart_voltage_range_slider)
+        QWidget.setTabOrder(self.stripchart_voltage_range_slider, self.stripchart_grid_checkbox)
         QWidget.setTabOrder(self.stripchart_grid_checkbox, self.stripchart_grid_density_slider)
         QWidget.setTabOrder(self.stripchart_grid_density_slider, self.channel_dual_button)
         QWidget.setTabOrder(self.channel_dual_button, self.channel_a_button)
@@ -714,13 +710,13 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.stripchart_dynamic_scale_checkbox.setText(QCoreApplication.translate("MainWindow", u"Auto", None))
 #if QT_CONFIG(tooltip)
-        self.stripchart_max_voltage_slider.setToolTip(QCoreApplication.translate("MainWindow", u"Manual maximum voltage when Auto is off.", None))
+        self.stripchart_voltage_range_slider.setToolTip(QCoreApplication.translate("MainWindow", u"Manual voltage window when Auto is off; drag a handle to move one end, or the bar between them to pan.", None))
 #endif // QT_CONFIG(tooltip)
 #if QT_CONFIG(tooltip)
-        self.stripchart_max_voltage_value_label.setToolTip(QCoreApplication.translate("MainWindow", u"Manual maximum voltage when Auto is off.", None))
+        self.stripchart_voltage_range_value_label.setToolTip(QCoreApplication.translate("MainWindow", u"Manual voltage window when Auto is off.", None))
 #endif // QT_CONFIG(tooltip)
-        self.stripchart_max_voltage_value_label.setText(QCoreApplication.translate("MainWindow", u"5 V", None))
-        self.stripchart_max_voltage_value_label.setProperty(u"role", QCoreApplication.translate("MainWindow", u"readout", None))
+        self.stripchart_voltage_range_value_label.setText(QCoreApplication.translate("MainWindow", u"0.0\u20135.0 V", None))
+        self.stripchart_voltage_range_value_label.setProperty(u"role", QCoreApplication.translate("MainWindow", u"readout", None))
         self.stripchart_grid_label.setText(QCoreApplication.translate("MainWindow", u"Grid", None))
 #if QT_CONFIG(tooltip)
         self.stripchart_grid_checkbox.setToolTip(QCoreApplication.translate("MainWindow", u"Show grid lines on the chart.", None))
