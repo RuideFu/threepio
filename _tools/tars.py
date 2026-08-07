@@ -27,6 +27,13 @@ DAQ_PORT_ENV = "THREEPIO_DAQ_PORT"
 DEC_PORT_ENV = "THREEPIO_DEC_PORT"
 NATIVE_DEC_PORT = "/dev/serial0"
 
+# Every DATAQ range table is model-specific: Tars.RANGE_VOLT is the DI-4108
+# column. A DI-4208 reads +/-2.5 where the DI-4108 reads +/-2, and both it and
+# the DI-2108P offer unipolar ranges that need a different conversion formula
+# entirely, so decoding one of those with this table is silently wrong.
+DAQ_MODEL = "4108"
+DEFAULT_RANGE_VOLT = 5  # Tightest range that does not clip a 0..5 V coax signal
+
 
 def discovery() -> tuple[str | None, str | None]:
     # Get a list of active com ports to scan for possible DATAQ Instruments devices
@@ -56,8 +63,17 @@ def discovery() -> tuple[str | None, str | None]:
     return dataq, declinometer
 
 
-def convert(buffer: list, volt: int) -> float:
-    return volt * int.from_bytes(buffer, byteorder="little", signed=True) / 32768
+def slist_word(channel: int, volts: float = DEFAULT_RANGE_VOLT) -> int:
+    """
+    Build one scan list configuration word: bits 3:0 select the analog channel,
+    bits 11:8 select the measurement range, bits 15:12 are unused and must be 0.
+    """
+    return (Tars.RANGE_VOLT.index(volts) << 8) | channel
+
+
+def range_volt(word: int) -> float:
+    """Recover the full-scale volts a scan list word asked the device for."""
+    return Tars.RANGE_VOLT[(word >> 8) & 0xF]
 
 
 class Tars:
@@ -69,6 +85,9 @@ class Tars:
     RANGE_VOLT = (10, 5, 2, 1, 0.5, 0.2)
     RANGE_RATE = (50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10)
 
+    COMMAND_TIMEOUT = 0.25  # seconds; bounds one blocking read for a command echo
+    DRAIN_TIMEOUT = 1.0  # seconds; caps how long a still-scanning device can stall setup
+
     def __init__(self, parent, device=None):
         self.parent = parent
 
@@ -76,17 +95,22 @@ class Tars:
         if self.testing:
             self.parent.log("DataQ not found, simulating data")
 
-        self.ser = MySerial(device)
+        # Configure at construction: MySerial swallows SerialException from
+        # _reconfigure_port, so assigning the timeout after opening can fail
+        # silently and leave the port blocking forever on a short read.
+        self.ser = MySerial(device, timeout=self.COMMAND_TIMEOUT)
         self.channels = [
-            0x0100,  # Channel 0, telescope channel A, ±5 V range
-            0x0101,  # Channel 1, telescope channel B, ±5 V range
+            slist_word(0),  # Telescope channel A
+            slist_word(1),  # Telescope channel B
         ]
         self.acquiring = False
 
-        self.setup()
+        self.configured = self.setup()
 
     def start(self):
         if not self.testing:
+            # "start" never echoes, so nothing should follow it but samples.
+            self.ser.reset_input_buffer()
             self.send("start")
             self.acquiring = True
 
@@ -140,35 +164,96 @@ class Tars:
             return
         self.ser.write((command + "\r").encode())
 
-    def setup(self):
+    def command(self, command: str) -> str | None:
+        """
+        Send one command and return the device's echo, or None if none arrived
+        within COMMAND_TIMEOUT. Every command echoes while the device is not
+        scanning, as "<command> <response><CR>".
+        """
+        self.send(command)
+        echo = self.ser.read_until(b"\r")
+        if not echo.endswith(b"\r"):
+            return None
+        return echo.decode(errors="replace").strip()
+
+    @staticmethod
+    def _matches(echo: str | None, command: str) -> bool:
+        # Compare on whitespace-separated tokens: the protocol pins the fields
+        # of an echo but not the exact spacing between them.
+        return echo is not None and echo.split() == command.split()
+
+    def _configure(self, command: str) -> bool:
+        """Send a configuration command and confirm the device echoed it back."""
+        echo = self.command(command)
+        if self._matches(echo, command):
+            return True
+        self.parent.log(f"DataQ did not confirm '{command}' (got {echo!r})", warning=True)
+        return False
+
+    def _drain(self):
+        """
+        Read until the device goes quiet. On startup it may still be streaming
+        binary from a crashed session, in which case the "stop" echo arrives
+        behind an unknown amount of sample data, so drain rather than parse.
+        """
+        deadline = time.time() + self.DRAIN_TIMEOUT
+        while time.time() < deadline:
+            if not self.ser.read(max(1, self.ser.in_waiting)):
+                return  # A read that timed out empty means the line is quiet
+
+    def setup(self) -> bool:
         if self.testing:
-            return
+            return False
 
+        # "stop" echoes even mid-scan, so this works whether or not the device
+        # was left acquiring by a previous run.
         self.send("stop")
-        self.send("encode 0")  # 0 = binary, 1 = ascii
-        self.send("ps 0")  # Small pocketsize for responsiveness
+        self._drain()
+        self.acquiring = False
 
-        for i in range(0, len(self.channels)):
-            self.send("slist " + str(i) + " " + str(self.channels[i]))
+        commands = [
+            "encode 0",  # 0 = binary, 1 = ascii
+            "ps 0",  # Small pocketsize for responsiveness
+        ]
+        commands += [f"slist {i} {word}" for i, word in enumerate(self.channels)]
+        # Sample rate is a throughput on this device, not a per-channel rate:
+        # 60,000,000/(srate * dec) = 60,000,000/(1171 * 512) = 100 Hz total,
+        # so each of the two channels is sampled at ~50 Hz.
+        commands += ["dec 512", "srate 1171"]
 
-        # Define sample rate = 100 Hz:
-        # 60,000,000/(srate * dec) = 60,000,000/(1171 * 512) = 100 Hz
-        self.send("dec 512")
-        self.send("srate 1171")
+        model = self.command("info 1")
+        if model is None:
+            # Nothing is echoing, so there is no echo to synchronize on. Fall
+            # back to the blind sequence: fire everything, wait, and flush.
+            # Anything left in the buffer would otherwise be decoded as samples
+            # -- printable ASCII pairs land in 8224..32382 counts, and an odd
+            # byte count shifts every later sample for the rest of the session.
+            self.parent.log("DataQ is not echoing commands; configuring blind", warning=True)
+            for command in commands:
+                self.send(command)
+            time.sleep(0.2)
+            self.ser.reset_input_buffer()
+            return False
 
-        # self.send("dec 512")
-        # self.send("srate 11718")
+        ok = True
+        if not self._matches(model, f"info 1 {DAQ_MODEL}"):
+            self.parent.log(
+                f"DataQ reports {model!r}, not a DI-{DAQ_MODEL}; "
+                f"voltage ranges will be misread",
+                warning=True,
+            )
+            ok = False
 
-        # The device echoes every command back as ASCII on the same stream
-        # buffer_read decodes as samples. Measured on a DI-4108 (fw 8B), the
-        # commands above leave 51 bytes in the buffer -- an odd count, so
-        # without this flush the first ~25 readings are the text of these
-        # commands (which decodes to 6.25-9.94 V, since printable ASCII pairs
-        # land in 8224..32382 counts) and every sample after them is shifted
-        # by one byte for the rest of the session. "start" draws no echo, so
-        # flushing here is enough.
-        time.sleep(0.2)
-        self.ser.reset_input_buffer()
+        for command in commands:
+            ok &= self._configure(command)
+
+        if ok:
+            channels = ", ".join(str(word & 0xF) for word in self.channels)
+            self.parent.log(
+                f"DI-{DAQ_MODEL} confirmed; channels {channels} at "
+                f"±{range_volt(self.channels[0])} V"
+            )
+        return ok
 
     def in_waiting(self) -> int:
         if self.testing:
@@ -194,7 +279,7 @@ class Tars:
         # code that would win back the unused bit; ±5 V is still the tightest
         # range that does not clip a 5 V input.
         return (
-            Tars.RANGE_VOLT[channel >> 8]
+            range_volt(channel)
             * int.from_bytes(buffer, byteorder="little", signed=True)
             / 32768
         )
