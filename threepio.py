@@ -17,7 +17,6 @@ from tools import (
     SuperClock,
     TimerManager,
     GB_LATITUDE,
-    Tars,
     MiniTars,
     discovery,
     LogTask,
@@ -25,6 +24,9 @@ from tools import (
     Alert,
     DecCalc,
     ObsType,
+    create_data_source,
+    load_settings,
+    save_settings,
 )
 
 
@@ -130,6 +132,16 @@ class Threepio(QtWidgets.QMainWindow):
             self.theme_action_group.addAction(action)
             action.triggered.connect(lambda _=False, s=scheme: self.set_theme(s))
 
+        self.device_action_group = QtGui.QActionGroup(self)
+        saved_device = load_settings().get("device", "dataq")
+        for action, device in (
+            (self.ui.actionDeviceDataq, "dataq"),
+            (self.ui.actionDeviceRtlsdr, "rtlsdr"),
+        ):
+            self.device_action_group.addAction(action)
+            action.setChecked(device == saved_device)
+            action.triggered.connect(lambda _=False, d=device: self.set_device(d))
+
         self.ui.channel_dual_button.clicked.connect(
             lambda: self.set_channel_visibility(True, True)
         )
@@ -154,9 +166,9 @@ class Threepio(QtWidgets.QMainWindow):
         self.alert_thread: set[QtCore.QThread] = set()
         self.worker = None
 
-        # Tars/DATAQ
+        # Signal source (DATAQ or RTL-SDR, per the Mode > Device menu)
         dataq, declinometer = discovery()
-        self.tars = Tars(parent=self, device=dataq)
+        self.tars = create_data_source(parent=self, dataq_port=dataq)
         self.tars.start()
         self.minitars = MiniTars(parent=self, device=declinometer)
         if declinometer is None:
@@ -363,6 +375,12 @@ class Threepio(QtWidgets.QMainWindow):
     def set_theme(self, scheme: QtCore.Qt.ColorScheme):
         """Set light/dark appearance; Unknown follows the system setting."""
         QtGui.QGuiApplication.styleHints().setColorScheme(scheme)
+
+    def set_device(self, device: str):
+        """Persist the signal-source choice; it takes effect on next launch."""
+        save_settings(device=device)
+        name = {"dataq": "DATAQ", "rtlsdr": "RTL-SDR"}[device]
+        self.alert(Alert(f"Restart Threepio to switch to {name}", "Okay"))
 
     def toggle_state_legacy(self):
         """Makes Threepio look like the outgoing ERIRA DAQ software."""
@@ -814,6 +832,11 @@ class Threepio(QtWidgets.QMainWindow):
 
         close = quit_dialog.exec()
         if close:
+            try:
+                self.tars.stop()
+                self.minitars.stop()
+            except Exception:
+                pass  # Never block shutdown on hardware teardown
             event.accept()
         else:
             event.ignore()

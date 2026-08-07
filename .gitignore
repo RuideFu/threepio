@@ -15,4 +15,5 @@ dist/
 dec-cal*.txt
 test.py
 dec-debug.log
+threepio-settings.json
 teeny-tiny-telescope/*

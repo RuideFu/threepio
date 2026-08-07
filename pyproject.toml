@@ -9,3 +9,11 @@ dependencies = [
     "pyserial>=3.5",
     "pyside6>=6.11.0",
 ]
+
+[project.optional-dependencies]
+sdr = [
+    "pyrtlsdr>=0.3.0",
+    # Bundles the rtl-sdr-blog librtlsdr build (V4 support included), so no
+    # system librtlsdr or DYLD_LIBRARY_PATH is needed; pyrtlsdr prefers it.
+    "pyrtlsdrlib>=0.0.5",
+]

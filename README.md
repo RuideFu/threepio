@@ -44,3 +44,17 @@ $ uv run threepio.py
 ```
 
 `uv run` automatically uses the project's virtual environment, so there's no need to activate it manually. If you prefer, you can still activate it (`source .venv/bin/activate` on Linux/macOS, `.\.venv\Scripts\Activate.ps1` on Windows) and run `python threepio.py` directly.
+
+## RTL-SDR signal source
+
+Threepio can acquire continuum data from an RTL-SDR dongle instead of the DATAQ ADC. Select **Mode > Device > RTL-SDR** and restart Threepio (the choice persists in `threepio-settings.json`; DATAQ is the default). The driver integrates total power — mean |IQ|² over ~10 ms windows at 2.048 MS/s — and writes the same value to channels A and B.
+
+Setup:
+
+```
+$ uv sync --extra sdr
+```
+
+This installs `pyrtlsdrlib`, which bundles the [rtl-sdr-blog](https://github.com/rtlsdrblog/rtl-sdr-blog) build of `librtlsdr` (V4 support included) — no system library, `brew install`, or `DYLD_LIBRARY_PATH` needed, on macOS, Linux, or Windows. On Linux, blacklist the DVB kernel driver so it doesn't claim the dongle: `echo 'blacklist dvb_usb_rtl28xxu' | sudo tee /etc/modprobe.d/rtlsdr-blacklist.conf`. Two harmless quirks of the bundled driver: it may print "Kernel driver is active..." on macOS even though the device opens fine, and gain *readback* reports 0.0 dB even though the set gain is applied (verified by noise-floor measurement).
+
+Environment knobs (all optional): `THREEPIO_SDR_FREQ_MHZ` (default 1420.406, the H1 line), `THREEPIO_SDR_RATE` (Hz, default 2.048e6), `THREEPIO_SDR_GAIN` (dB, default 49.6, snapped to the tuner's nearest step), `THREEPIO_SDR_BIAS_TEE=1` to power an LNA, and `THREEPIO_DEVICE=dataq|rtlsdr` to override the menu choice (useful headless). Note: recorded values and the strip chart's "V" readout are scaled linear power (mean |IQ|² × 100), not volts.

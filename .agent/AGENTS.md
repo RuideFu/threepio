@@ -47,3 +47,10 @@ Recent Agent Update (2026-05-12)
   - Added dynamic scale toggle, manual max-voltage slider (1-15V), and grid toggle controls.
   - Added shared dynamic voltage scaling across both strip chart channels using a symmetric range.
   - Refactored strip chart axis usage to persistent chart axes updated in place.
+
+Recent Agent Update (2026-08-06)
+- Added an RTL-SDR signal-source option switchable with the DATAQ via Mode > Device (restart to apply):
+  - New `_tools/sdr_tars.py`: `SdrTars` (background-thread total-power driver, duck-typed to the Tars start/stop/read_latest contract), `sdr_discovery()`, and `create_data_source()` factory used at startup in `threepio.py`.
+  - New `_tools/settings.py`: tiny JSON settings store (`threepio-settings.json`, gitignored) holding the device choice.
+  - `pyrtlsdr` is an optional dependency (`uv sync --extra sdr`) imported lazily; missing library/dongle falls back to the existing Tars simulation with a warning.
+  - `closeEvent` now stops the signal source and declinometer so the SDR thread joins and the USB handle is released.

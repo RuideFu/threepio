@@ -1063,12 +1063,20 @@
      <addaction name="actionThemeLight"/>
      <addaction name="actionThemeDark"/>
     </widget>
+    <widget class="QMenu" name="menuDevice">
+     <property name="title">
+      <string>Device</string>
+     </property>
+     <addaction name="actionDeviceDataq"/>
+     <addaction name="actionDeviceRtlsdr"/>
+    </widget>
     <addaction name="actionNormal"/>
     <addaction name="actionTesting"/>
     <addaction name="separator"/>
     <addaction name="actionLegacy"/>
     <addaction name="separator"/>
     <addaction name="menuTheme"/>
+    <addaction name="menuDevice"/>
    </widget>
    <widget class="QMenu" name="menuObservation">
     <property name="title">
@@ -1212,6 +1220,25 @@
    </property>
    <property name="text">
     <string>Dark</string>
+   </property>
+  </action>
+  <action name="actionDeviceDataq">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>DATAQ</string>
+   </property>
+  </action>
+  <action name="actionDeviceRtlsdr">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>RTL-SDR</string>
    </property>
   </action>
  </widget>
