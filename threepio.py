@@ -88,7 +88,7 @@ class Threepio(QtWidgets.QMainWindow):
         self.stripchart_grid_density = 8
         self.stripchart_manual_min_voltage = 0.0
         self.stripchart_manual_max_voltage = 5.0
-        self.stripchart_min_voltage_range = 1.0
+        self.stripchart_min_voltage_range = 0.1
         self.initialize_voltage_range_slider()
         self.axis_x = QtCharts.QValueAxis()
         self.axis_y = QtCharts.QValueAxis()
