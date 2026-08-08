@@ -14,7 +14,10 @@ import time
 
 import random as r  # For testing
 import math
+import statistics
+from collections import deque
 from dataclasses import dataclass
+from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,44 @@ SCAN_RATE = BASE_CLOCK_HZ / (SRATE * DECIMATION)  # ~100 Hz across the whole sca
 """
 
 FILTER_TAU = 0.08  # seconds
+
+
+class FilterKind(Enum):
+    """
+    Which software filter sits between the ADC and everything downstream.
+
+    The two algorithms solve different problems and are not really substitutes:
+
+      SINGLE_POLE  attenuates broadband noise across the whole band above its
+                   corner, at the cost of delaying and smoothing everything.
+                   This is what reduces the sampling noise the ~0.3 s analog
+                   integrator leaves behind.
+      HAMPEL       replaces samples that sit more than HAMPEL_SIGMAS robust
+                   standard deviations off the local median, and passes every
+                   other sample through untouched. It removes isolated spikes
+                   (RFI hits, ADC glitches, a dropped serial byte) without
+                   blurring real structure -- but it does almost nothing to
+                   Gaussian noise, so on its own it will not quiet the trace.
+
+    Hence BOTH, which is usually what you want: despike first, then smooth.
+    The order matters. A spike that reaches the lowpass is smeared across the
+    following ~tau of output, so removing it afterward is no longer possible.
+    """
+
+    NONE = "none"
+    SINGLE_POLE = "single_pole"
+    HAMPEL = "hampel"
+    BOTH = "both"
+
+
+FILTER_KIND = FilterKind.SINGLE_POLE
+
+# Hampel parameters. The window is a trailing one -- a centered window would
+# delay every sample by half its length, which is not free on a live stripchart.
+# 7 samples is ~140 ms at ~50 Hz per channel and tolerates up to 3 consecutive
+# bad samples; 3 sigmas passes ~99.7% of clean Gaussian data untouched.
+HAMPEL_WINDOW = 7
+HAMPEL_SIGMAS = 3.0
 
 
 def discovery() -> tuple[str | None, str | None]:
@@ -137,6 +178,86 @@ class SinglePoleLowpass:
         return self.value
 
 
+class HampelFilter:
+    """
+    Trailing-window Hampel identifier: replace a sample with the window median
+    when it lies more than `sigmas` robust standard deviations away from it,
+    and otherwise pass it through untouched.
+
+    Spread is estimated as 1.4826 * MAD (median absolute deviation) rather than
+    a standard deviation, so a spike cannot inflate the very threshold meant to
+    catch it -- the median and MAD both tolerate up to half the window being
+    corrupt, where one bad sample is enough to hide itself behind an ordinary
+    mean and standard deviation.
+
+    This is a despiker, not a smoother. It leaves inliers exactly as they were,
+    so it does not reduce Gaussian noise; pair it with SinglePoleLowpass if the
+    trace needs quieting as well.
+    """
+
+    # A spread estimate of zero would make every deviation "infinitely" many
+    # sigmas and clamp the output to the median. That is not hypothetical here:
+    # a quiet channel resting on one ADC code (305 uV on the +/-10 V range) makes
+    # more than half the window identical, so MAD is exactly 0 and the filter
+    # would quantize away every small real change. Below this, pass through.
+    MIN_SPREAD = 1e-12
+
+    def __init__(self, window: int, sigmas: float):
+        self.samples: deque[float] = deque(maxlen=max(1, window))
+        self.sigmas = sigmas
+
+    def reset(self):
+        self.samples.clear()
+
+    def update(self, sample: float) -> float:
+        self.samples.append(sample)
+        # A partly-filled window has too few samples for the median to be robust;
+        # judging a spike against 2 neighbors mostly rejects good data instead.
+        if len(self.samples) < self.samples.maxlen:
+            return sample
+
+        median = statistics.median(self.samples)
+        mad = statistics.median([abs(x - median) for x in self.samples])
+        spread = 1.4826 * mad
+        if spread < self.MIN_SPREAD:
+            return sample
+        if abs(sample - median) > self.sigmas * spread:
+            return median
+        return sample
+
+
+class FilterChain:
+    """
+    Applies filter stages in order. An empty chain is the identity, which is how
+    FilterKind.NONE is expressed.
+    """
+
+    def __init__(self, stages):
+        self.stages = tuple(stages)
+
+    def reset(self):
+        for stage in self.stages:
+            stage.reset()
+
+    def update(self, sample: float) -> float:
+        for stage in self.stages:
+            sample = stage.update(sample)
+        return sample
+
+
+def make_filter(kind: FilterKind, period: float) -> FilterChain:
+    """
+    Build the filter chain for one channel. Despiking precedes smoothing: a
+    spike that reaches the lowpass is already smeared across its output.
+    """
+    stages = []
+    if kind in (FilterKind.HAMPEL, FilterKind.BOTH):
+        stages.append(HampelFilter(HAMPEL_WINDOW, HAMPEL_SIGMAS))
+    if kind in (FilterKind.SINGLE_POLE, FilterKind.BOTH):
+        stages.append(SinglePoleLowpass(FILTER_TAU, period))
+    return FilterChain(stages)
+
+
 class Tars:
     """
     A wrapper class of a serial object which supports functionalities specifically
@@ -166,11 +287,11 @@ class Tars:
         ]
         self.acquiring = False
 
-        # One filter per channel. The per-channel period depends on how many
-        # channels share the scan list, so this has to follow self.channels.
+        # One filter chain per channel. The per-channel period depends on how
+        # many channels share the scan list, so this has to follow self.channels.
         period = len(self.channels) / SCAN_RATE
         self.filters = tuple(
-            SinglePoleLowpass(FILTER_TAU, period) for _ in self.channels
+            make_filter(FILTER_KIND, period) for _ in self.channels
         )
 
         self.configured = self.setup()

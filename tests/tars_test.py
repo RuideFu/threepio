@@ -1,3 +1,4 @@
+import statistics
 from unittest.mock import patch
 
 import pytest
@@ -77,20 +78,30 @@ class FakeSerial:
         self.buffer.clear()
 
 
-def _tars(tau=None, **kwargs):
+def _tars(tau=None, kind=None, **kwargs):
     """
-    Build a Tars against a fake device. `tau` overrides FILTER_TAU for tests that
-    want a known filter coefficient, or disables filtering entirely with tau=0;
-    it is read at construction, so patching it here is what the class sees.
+    Build a Tars against a fake device. `tau` and `kind` override FILTER_TAU and
+    FILTER_KIND for tests that want a known filter; both are read at construction,
+    so patching them here is what the class sees.
     """
     parent = FakeParent()
     serial = FakeSerial(**kwargs)
     tau = tars.FILTER_TAU if tau is None else tau
+    kind = tars.FILTER_KIND if kind is None else kind
     with (
         patch.object(tars, "MySerial", lambda device, timeout=None: serial),
         patch.object(tars, "FILTER_TAU", tau),
+        patch.object(tars, "FILTER_KIND", kind),
     ):
         return Tars(parent, device="/dev/fake"), parent, serial
+
+
+def _alpha(daq):
+    """The lowpass coefficient of a channel's chain."""
+    (lowpass,) = [
+        s for s in daq.filters[0].stages if isinstance(s, tars.SinglePoleLowpass)
+    ]
+    return lowpass.alpha
 
 
 def _config_commands(serial):
@@ -227,7 +238,7 @@ def test_setup_tolerates_silent_encode_and_nul_padded_echoes():
 
 def test_read_latest_decodes_both_channels():
     # Unfiltered, so this stays a test of the decoding alone.
-    daq, _, serial = _tars(tau=0)
+    daq, _, serial = _tars(kind=tars.FilterKind.NONE)
     daq.channels = [slist_word(0, volts=5), slist_word(1, volts=5)]
     # Two scans of (channel A, channel B), little-endian, +/-5 V range.
     serial.buffer = bytearray(b"\x00\x40\x00\x20" b"\x00\x60\x00\x10")
@@ -250,8 +261,8 @@ def test_read_latest_returns_none_without_a_whole_scan():
 # - MARK: lowpass filter
 
 
-def _five_volt_daq(tau=None):
-    daq, _, serial = _tars(tau=tau)
+def _five_volt_daq(tau=None, kind=None):
+    daq, _, serial = _tars(tau=tau, kind=kind)
     daq.channels = [slist_word(0, volts=5), slist_word(1, volts=5)]
     return daq, serial
 
@@ -260,18 +271,25 @@ def test_filter_alpha_follows_the_configured_scan_rate():
     # The DI-4108 walks the whole scan list at SCAN_RATE, so each of the two
     # channels is sampled at half that. A future edit to srate/dec/channel count
     # that silently detunes the cutoff should fail here.
-    daq, _, _ = _tars()
+    daq, _, _ = _tars(kind=tars.FilterKind.SINGLE_POLE)
     period = 2 / (tars.BASE_CLOCK_HZ / (tars.SRATE * tars.DECIMATION))
 
     assert period == pytest.approx(0.02, abs=1e-4)
-    assert [f.alpha for f in daq.filters] == [
-        pytest.approx(period / (tars.FILTER_TAU + period))
-    ] * 2
+    assert _alpha(daq) == pytest.approx(period / (tars.FILTER_TAU + period))
+
+
+def test_filter_kind_none_passes_samples_through_unchanged():
+    daq, serial = _five_volt_daq(kind=tars.FilterKind.NONE)
+    assert daq.filters[0].stages == ()
+
+    serial.buffer = bytearray(b"\x00\x40\x00\x20" b"\x00\x60\x00\x10")
+
+    assert daq.read_latest().a == pytest.approx(3.75)
 
 
 def test_zero_tau_passes_samples_through_unchanged():
-    daq, serial = _five_volt_daq(tau=0)
-    assert all(f.alpha == 1.0 for f in daq.filters)
+    daq, serial = _five_volt_daq(tau=0, kind=tars.FilterKind.SINGLE_POLE)
+    assert _alpha(daq) == 1.0
 
     serial.buffer = bytearray(b"\x00\x40\x00\x20" b"\x00\x60\x00\x10")
 
@@ -281,7 +299,7 @@ def test_zero_tau_passes_samples_through_unchanged():
 def test_first_sample_is_not_ramped_in_from_zero():
     # Seeding the filter at 0 would make every start() look like a real rising
     # signal for several tau.
-    daq, serial = _five_volt_daq()
+    daq, serial = _five_volt_daq(kind=tars.FilterKind.SINGLE_POLE)
     serial.buffer = bytearray(b"\x00\x40\x00\x20")
 
     datum = daq.read_latest()
@@ -291,8 +309,8 @@ def test_first_sample_is_not_ramped_in_from_zero():
 
 
 def test_read_latest_lowpasses_toward_the_input():
-    daq, serial = _five_volt_daq()
-    alpha = daq.filters[0].alpha
+    daq, serial = _five_volt_daq(kind=tars.FilterKind.SINGLE_POLE)
+    alpha = _alpha(daq)
     # Seeds at (2.5, 1.25), then steps toward (3.75, 0.625).
     serial.buffer = bytearray(b"\x00\x40\x00\x20" b"\x00\x60\x00\x10")
 
@@ -305,8 +323,8 @@ def test_read_latest_lowpasses_toward_the_input():
 def test_every_queued_scan_updates_the_filter():
     # A slow tick lets scans queue up. Keeping only the newest would both waste
     # the averaging and stretch the effective time constant.
-    daq, serial = _five_volt_daq()
-    alpha = daq.filters[0].alpha
+    daq, serial = _five_volt_daq(kind=tars.FilterKind.SINGLE_POLE)
+    alpha = _alpha(daq)
     # Seed at 0 V, then hold 2.5 V for two more scans.
     serial.buffer = bytearray(
         b"\x00\x00\x00\x00" b"\x00\x40\x00\x40" b"\x00\x40\x00\x40"
@@ -321,7 +339,7 @@ def test_every_queued_scan_updates_the_filter():
 def test_start_resets_the_filter():
     # start() flushes the input buffer, so the pre-flush value must not bleed
     # across the gap.
-    daq, serial = _five_volt_daq()
+    daq, serial = _five_volt_daq(kind=tars.FilterKind.SINGLE_POLE)
     serial.buffer = bytearray(b"\x00\x40\x00\x20")
     assert daq.read_latest().a == pytest.approx(2.5)
 
@@ -329,6 +347,115 @@ def test_start_resets_the_filter():
     serial.buffer = bytearray(b"\x00\x60\x00\x10")
 
     assert daq.read_latest().a == pytest.approx(3.75)  # Freshly seeded, not blended
+
+
+# - MARK: Hampel filter
+
+
+def _hampel(window=5, sigmas=3.0):
+    return tars.HampelFilter(window=window, sigmas=sigmas)
+
+
+def _feed(f, samples):
+    return [f.update(x) for x in samples]
+
+
+def test_hampel_passes_a_partly_filled_window_through():
+    # Judging a spike against 2 neighbors mostly rejects good data instead.
+    f = _hampel(window=5)
+    assert _feed(f, [1.0, 9.0, 1.0, 1.0]) == [1.0, 9.0, 1.0, 1.0]
+
+
+def test_hampel_replaces_a_spike_with_the_local_median():
+    f = _hampel(window=5)
+    noise = [1.0, 1.1, 0.9, 1.05, 0.95]
+    _feed(f, noise)
+
+    assert f.update(50.0) == pytest.approx(statistics.median(noise[1:] + [50.0]))
+
+
+def test_hampel_leaves_ordinary_samples_untouched():
+    # It is a despiker, not a smoother: inliers come out bit-for-bit unchanged.
+    f = _hampel(window=5)
+    samples = [1.0, 1.1, 0.9, 1.05, 0.95, 1.02, 0.98, 1.03]
+
+    assert _feed(f, samples) == samples
+
+
+def test_hampel_passes_through_when_the_window_has_no_spread():
+    # A quiet channel resting on one ADC code makes MAD exactly 0. Without the
+    # guard, every deviation is "infinitely" many sigmas and the output clamps
+    # to the median, quantizing away small real changes.
+    f = _hampel(window=5)
+    _feed(f, [2.0] * 5)
+
+    assert f.update(2.0001) == pytest.approx(2.0001)
+
+
+def test_hampel_survives_a_run_of_bad_samples():
+    # The median and MAD tolerate up to half the window being corrupt, where a
+    # mean and standard deviation would let one spike hide itself.
+    f = _hampel(window=7)
+    _feed(f, [1.0, 1.1, 0.9, 1.05, 0.95, 1.02, 0.98])
+
+    # Three consecutive spikes in a 7-window: still a clean majority, so every
+    # one comes back at the surrounding level instead of 80.
+    assert _feed(f, [80.0] * 3) == pytest.approx([1.02, 1.02, 1.05])
+
+
+def test_hampel_gives_up_once_the_bad_samples_are_the_majority():
+    # The honest limit of the window: 4 of 7 corrupt makes the spike level the
+    # median, and it passes through as if it were the signal.
+    f = _hampel(window=7)
+    _feed(f, [1.0, 1.1, 0.9, 1.05, 0.95, 1.02, 0.98])
+
+    assert _feed(f, [80.0] * 4)[-1] == pytest.approx(80.0)
+
+
+def test_hampel_reset_forgets_the_window():
+    f = _hampel(window=5)
+    _feed(f, [1.0] * 5)
+    f.reset()
+
+    # Back to a partly-filled window, so this passes through instead of being
+    # judged against the pre-reset samples.
+    assert f.update(50.0) == 50.0
+
+
+# - MARK: filter chain
+
+
+def test_both_despikes_before_smoothing():
+    # Order matters: a spike that reaches the lowpass is smeared across the
+    # following ~tau of output, so removing it afterward is impossible.
+    daq, _, _ = _tars(kind=tars.FilterKind.BOTH)
+    stages = daq.filters[0].stages
+
+    assert [type(s) for s in stages] == [tars.HampelFilter, tars.SinglePoleLowpass]
+
+
+@pytest.mark.parametrize(
+    "kind,expected",
+    [
+        (tars.FilterKind.NONE, []),
+        (tars.FilterKind.SINGLE_POLE, [tars.SinglePoleLowpass]),
+        (tars.FilterKind.HAMPEL, [tars.HampelFilter]),
+        (tars.FilterKind.BOTH, [tars.HampelFilter, tars.SinglePoleLowpass]),
+    ],
+)
+def test_every_filter_kind_builds_its_chain(kind, expected):
+    chain = tars.make_filter(kind, period=0.02)
+    assert [type(s) for s in chain.stages] == expected
+
+
+def test_chain_resets_every_stage():
+    chain = tars.make_filter(tars.FilterKind.BOTH, period=0.02)
+    _feed(chain, [1.0] * 10)
+    chain.reset()
+
+    hampel, lowpass = chain.stages
+    assert len(hampel.samples) == 0
+    assert lowpass.value is None
 
 
 def test_lowpass_step_response_converges_on_the_input():
