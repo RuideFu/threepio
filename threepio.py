@@ -150,7 +150,7 @@ class Threepio(QtWidgets.QMainWindow):
         # Bleeps and bloops
         self.beep_sound = QtMultimedia.QSoundEffect()
         url = QtCore.QUrl()
-        self.beep_sound.setSource(url.fromLocalFile("assets/beep3.wav"))
+        self.beep_sound.setSource(url.fromLocalFile("assets/beep1.wav"))
         self.beep_sound.setVolume(0.5)
         # self.click_sound.play()
         self.last_beep_time = 0.0
@@ -835,7 +835,7 @@ class Threepio(QtWidgets.QMainWindow):
 
     def beep(self, message=""):
         """Make beep play for user. Message param is only for debugging."""
-        if time.time() - self.last_beep_time > 0.1:
+        if time.time() - self.last_beep_time > 0.67:
             self.beep_sound.play()
             self.last_beep_time = time.time()
             print("beep!", message, time.time())
