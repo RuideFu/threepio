@@ -77,10 +77,19 @@ class FakeSerial:
         self.buffer.clear()
 
 
-def _tars(**kwargs):
+def _tars(tau=None, **kwargs):
+    """
+    Build a Tars against a fake device. `tau` overrides FILTER_TAU for tests that
+    want a known filter coefficient, or disables filtering entirely with tau=0;
+    it is read at construction, so patching it here is what the class sees.
+    """
     parent = FakeParent()
     serial = FakeSerial(**kwargs)
-    with patch.object(tars, "MySerial", lambda device, timeout=None: serial):
+    tau = tars.FILTER_TAU if tau is None else tau
+    with (
+        patch.object(tars, "MySerial", lambda device, timeout=None: serial),
+        patch.object(tars, "FILTER_TAU", tau),
+    ):
         return Tars(parent, device="/dev/fake"), parent, serial
 
 
@@ -217,11 +226,10 @@ def test_setup_tolerates_silent_encode_and_nul_padded_echoes():
 
 
 def test_read_latest_decodes_both_channels():
-    daq, _, serial = _tars()
+    # Unfiltered, so this stays a test of the decoding alone.
+    daq, _, serial = _tars(tau=0)
     daq.channels = [slist_word(0, volts=5), slist_word(1, volts=5)]
     # Two scans of (channel A, channel B), little-endian, +/-5 V range.
-    # Two scans of (channel A, channel B), little-endian, +/-5 V range. The
-    # first decodes to (2.5, 1.25) and must be discarded in favor of the second.
     serial.buffer = bytearray(b"\x00\x40\x00\x20" b"\x00\x60\x00\x10")
 
     datum = daq.read_latest()
@@ -229,6 +237,111 @@ def test_read_latest_decodes_both_channels():
     assert datum.a == pytest.approx(3.75)  # 0x6000 = 24576 counts
     assert datum.b == pytest.approx(0.625)  # 0x1000 = 4096 counts
     assert serial.in_waiting == 0
+
+
+def test_read_latest_returns_none_without_a_whole_scan():
+    # An empty read must stay None: tick() appends to the data list on anything
+    # that is not None, so returning the held filter state would double the
+    # recorded data rate.
+    daq, _, _ = _tars()
+    assert daq.read_latest() is None
+
+
+# - MARK: lowpass filter
+
+
+def _five_volt_daq(tau=None):
+    daq, _, serial = _tars(tau=tau)
+    daq.channels = [slist_word(0, volts=5), slist_word(1, volts=5)]
+    return daq, serial
+
+
+def test_filter_alpha_follows_the_configured_scan_rate():
+    # The DI-4108 walks the whole scan list at SCAN_RATE, so each of the two
+    # channels is sampled at half that. A future edit to srate/dec/channel count
+    # that silently detunes the cutoff should fail here.
+    daq, _, _ = _tars()
+    period = 2 / (tars.BASE_CLOCK_HZ / (tars.SRATE * tars.DECIMATION))
+
+    assert period == pytest.approx(0.02, abs=1e-4)
+    assert [f.alpha for f in daq.filters] == [
+        pytest.approx(period / (tars.FILTER_TAU + period))
+    ] * 2
+
+
+def test_zero_tau_passes_samples_through_unchanged():
+    daq, serial = _five_volt_daq(tau=0)
+    assert all(f.alpha == 1.0 for f in daq.filters)
+
+    serial.buffer = bytearray(b"\x00\x40\x00\x20" b"\x00\x60\x00\x10")
+
+    assert daq.read_latest().a == pytest.approx(3.75)
+
+
+def test_first_sample_is_not_ramped_in_from_zero():
+    # Seeding the filter at 0 would make every start() look like a real rising
+    # signal for several tau.
+    daq, serial = _five_volt_daq()
+    serial.buffer = bytearray(b"\x00\x40\x00\x20")
+
+    datum = daq.read_latest()
+
+    assert datum.a == pytest.approx(2.5)
+    assert datum.b == pytest.approx(1.25)
+
+
+def test_read_latest_lowpasses_toward_the_input():
+    daq, serial = _five_volt_daq()
+    alpha = daq.filters[0].alpha
+    # Seeds at (2.5, 1.25), then steps toward (3.75, 0.625).
+    serial.buffer = bytearray(b"\x00\x40\x00\x20" b"\x00\x60\x00\x10")
+
+    datum = daq.read_latest()
+
+    assert datum.a == pytest.approx(2.5 + alpha * 1.25)
+    assert datum.b == pytest.approx(1.25 - alpha * 0.625)
+
+
+def test_every_queued_scan_updates_the_filter():
+    # A slow tick lets scans queue up. Keeping only the newest would both waste
+    # the averaging and stretch the effective time constant.
+    daq, serial = _five_volt_daq()
+    alpha = daq.filters[0].alpha
+    # Seed at 0 V, then hold 2.5 V for two more scans.
+    serial.buffer = bytearray(
+        b"\x00\x00\x00\x00" b"\x00\x40\x00\x40" b"\x00\x40\x00\x40"
+    )
+
+    datum = daq.read_latest()
+
+    assert datum.a == pytest.approx(2.5 * (1 - (1 - alpha) ** 2))
+    assert datum.a != pytest.approx(2.5 * alpha)  # Only the last scan applied
+
+
+def test_start_resets_the_filter():
+    # start() flushes the input buffer, so the pre-flush value must not bleed
+    # across the gap.
+    daq, serial = _five_volt_daq()
+    serial.buffer = bytearray(b"\x00\x40\x00\x20")
+    assert daq.read_latest().a == pytest.approx(2.5)
+
+    daq.start()
+    serial.buffer = bytearray(b"\x00\x60\x00\x10")
+
+    assert daq.read_latest().a == pytest.approx(3.75)  # Freshly seeded, not blended
+
+
+def test_lowpass_step_response_converges_on_the_input():
+    lowpass = tars.SinglePoleLowpass(tau=0.3, period=0.02)
+
+    lowpass.update(0.0)
+    for _ in range(1000):
+        value = lowpass.update(1.0)
+
+    assert value == pytest.approx(1.0)
+
+    lowpass.reset()
+    assert lowpass.update(4.2) == pytest.approx(4.2)  # Reseeds, no memory of 1.0
 
 
 def test_start_flushes_before_scanning():
