@@ -78,18 +78,20 @@ class ObsDialog(QDialog):
         self.clear_messages()
 
         # If a scan or spectrum, only one dec needed
-        if self.obs.obs_type in [ObsType.SCAN, ObsType.SPECTRUM]:
+        if self.obs.obs_type in [ObsType.SCAN, ObsType.SPECTRUM, ObsType.PULSAR]:
             for i in [self.ui.max_dec, self.ui.end_dec_label]:
                 i.hide()
             self.ui.max_dec.setText("65535.0")  # Arbitrary large number
             self.ui.start_dec_label.setText("Declination")
-        if self.obs.obs_type in [ObsType.SPECTRUM, ObsType.SURVEY]:
+        if self.obs.obs_type in [ObsType.SPECTRUM, ObsType.SURVEY, ObsType.PULSAR]:
             for i in [
                 self.ui.data_acquisition_rate_label,
                 self.ui.data_acquisition_rate_value,
             ]:
                 i.hide()
-            # All spectra and surveys have data acquisition rates of 6
+            # All spectra and surveys have data acquisition rates of 6. A pulsar
+            # records at the DAQ's own rate, so its rate is not user-editable
+            # either; the value here only paces its state machine.
             self.ui.data_acquisition_rate_value.setValue(6)
         if self.obs.obs_type is ObsType.SPECTRUM:
             for i in [self.ui.end_label, self.ui.end_time]:

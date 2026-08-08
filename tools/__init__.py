@@ -11,6 +11,7 @@ from _tools.obsrecord import ObsRecord
 from _tools.alert import Alert
 from _tools.observation import Observation, ObsType
 from _tools.scan import Scan
+from _tools.pulsar import Pulsar
 from _tools.survey import Survey
 from _tools.spectrum import Spectrum
 from _tools.deccalc import DecCalc

@@ -289,10 +289,15 @@ class Tars:
 
         # One filter chain per channel. The per-channel period depends on how
         # many channels share the scan list, so this has to follow self.channels.
-        period = len(self.channels) / SCAN_RATE
+        self.sample_period = len(self.channels) / SCAN_RATE
         self.filters = tuple(
-            make_filter(FILTER_KIND, period) for _ in self.channels
+            make_filter(FILTER_KIND, self.sample_period) for _ in self.channels
         )
+
+        # Pulsar observations need the raw samples: every software filter here
+        # is a lowpass well below the pulse rate, so it would smear the very
+        # signal the mode exists to record.
+        self.filtering = True
 
         self.configured = self.setup()
 
@@ -325,6 +330,17 @@ class Tars:
         for channel_filter in self.filters:
             channel_filter.reset()
 
+    def set_filtering(self, enabled: bool):
+        """
+        Turn the software filter chain on or off. Switching either way discards
+        the filter state, so a value from the previous regime cannot bleed into
+        the first filtered sample after it is turned back on.
+        """
+        if enabled == self.filtering:
+            return
+        self.filtering = enabled
+        self.reset_filters()
+
     def _read_one(self) -> SignalDatum | None:
         """
         This reads one datapoint from the buffer. Each datapoint has three channels:
@@ -343,27 +359,37 @@ class Tars:
             return None
         return SignalDatum(a=float(channel_a), b=float(channel_b))
 
-    def read_latest(self) -> SignalDatum | None:
+    def read_all(self) -> list[SignalDatum]:
         """
-        Read every scan waiting in the buffer, lowpass them, and return the filtered
-        signal. Use this as a real-time sampling method.
+        Read every scan waiting in the buffer, filter them, and return all of them
+        oldest-first. Use this when no sample may be dropped, e.g. pulsar mode.
 
-        Returns None when no new scan arrived, so the caller's data rate is unchanged
-        -- tick() must not append a duplicate point on an empty read.
+        Returns an empty list when no new scan arrived, so the caller's data rate is
+        unchanged -- tick() must not append a duplicate point on an empty read.
         """
         if self.testing:
-            return self._filter(self.random_data())
+            return [self._filter(self.random_data())]
+        data = []
         current = self._read_one()
-        latest = None
         while current is not None:
             # Every decoded scan updates the filter, not just the newest one.
             # Dropping the backlog would waste the averaging and stretch the
             # effective time constant whenever a slow tick lets scans queue up.
-            latest = self._filter(current)
+            data.append(self._filter(current))
             current = self._read_one()
-        return latest
+        return data
+
+    def read_latest(self) -> SignalDatum | None:
+        """
+        As read_all(), but keeping only the newest scan (None if there was none).
+        Use this as a real-time sampling method.
+        """
+        data = self.read_all()
+        return data[-1] if data else None
 
     def _filter(self, datum: SignalDatum) -> SignalDatum:
+        if not self.filtering:
+            return datum
         return SignalDatum(
             a=self.filters[0].update(datum.a),
             b=self.filters[1].update(datum.b),

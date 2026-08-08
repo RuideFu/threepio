@@ -14,6 +14,7 @@ from tools import (
     Survey,
     Scan,
     Spectrum,
+    Pulsar,
     SuperClock,
     TimerManager,
     GB_LATITUDE,
@@ -118,6 +119,7 @@ class Threepio(QtWidgets.QMainWindow):
         self.ui.actionScan.triggered.connect(self.handle_scan)
         self.ui.actionSurvey.triggered.connect(self.handle_survey)
         self.ui.actionSpectrum.triggered.connect(self.handle_spectrum)
+        self.ui.actionPulsar.triggered.connect(self.handle_pulsar)
         self.ui.actionGetInfo.triggered.connect(self.handle_get_info)
 
         self.ui.actionDec.triggered.connect(self.dec_calibration)
@@ -224,8 +226,9 @@ class Threepio(QtWidgets.QMainWindow):
         else should be assigned to a timer.
         """
 
-        # Attempt to grab latest data point; it won't always be written to the data file
-        tars_datum = self.tars.read_latest()  # Get data from DAQ
+        # Attempt to grab latest data points; they won't always be written to the
+        # data file
+        tars_data = self.tars.read_all()  # Get data from DAQ
         minitars_datum = self.minitars.read_latest()  # Get data from Arduino
         sidereal_timestamp = self.clock.get_sidereal_seconds()
 
@@ -236,14 +239,7 @@ class Threepio(QtWidgets.QMainWindow):
         if minitars_datum is not None:
             self.current_dec = self.dec_calc.calculate_declination(minitars_datum)
 
-        if tars_datum is not None:
-            self.current_data_point = DataPoint(  # Create data point
-                float(sidereal_timestamp),  # RA
-                float(self.current_dec),  # Dec
-                float(tars_datum.a),  # Channel A
-                float(tars_datum.b),  # Channel B
-            )
-            self.data.append(self.current_data_point)  # Add to data list
+        self.record_samples(tars_data, sidereal_timestamp)
 
         self.scheduler.run_timers()  # Run all timers that are due
 
@@ -252,6 +248,33 @@ class Threepio(QtWidgets.QMainWindow):
         self.update_dec_view()
 
         self.ticks_since_last_fps_update += 1  # For measuring fps
+
+    def record_samples(self, data, sidereal_timestamp: float) -> None:
+        """Turn the scans read this tick into data points and offer each one to
+        the observation, which records it only if it samples at the DAQ's rate."""
+        if not data:
+            return
+
+        # The DI-4108 clocks its scans in hardware, so a batch that arrived
+        # together was sampled at even intervals ending about now. Stamping the
+        # whole batch with the current time would give several samples the same
+        # RA, which at the pulsar data rate is most of the timing information.
+        period = self.clock.solar_to_sidereal(self.tars.sample_period)
+        offsets = [(len(data) - 1 - i) * period for i in range(len(data))]
+
+        recording = self.obs is not None and self.obs.RECORDS_EVERY_SAMPLE
+        obs_timestamp = self.clock.get_time()
+        for datum, offset in zip(data, offsets):
+            self.current_data_point = DataPoint(  # Create data point
+                float(sidereal_timestamp - offset),  # RA
+                float(self.current_dec),  # Dec
+                float(datum.a),  # Channel A
+                float(datum.b),  # Channel B
+            )
+            self.data.append(self.current_data_point)  # Add to data list
+            if recording:
+                assert self.obs is not None
+                self.obs.record_sample(self.current_data_point, obs_timestamp)
 
     def update_data(self) -> None:
         if not self.check_and_set_observation_state():
@@ -400,8 +423,12 @@ class Threepio(QtWidgets.QMainWindow):
             self.ui.actionSurvey.setDisabled(obs_is_loaded)
             self.ui.actionScan.setDisabled(obs_is_loaded)
             self.ui.actionSpectrum.setDisabled(obs_is_loaded)
+            self.ui.actionPulsar.setDisabled(obs_is_loaded)
             self.ui.actionGetInfo.setDisabled(not obs_is_loaded)
             self.ui_thinks_obs_is_set = obs_is_loaded
+            # Filtering is a property of the loaded observation, so it has to
+            # follow the observation being loaded and unloaded.
+            self.tars.set_filtering(self.obs.FILTERED if obs_is_loaded else True)
 
         if self.obs is not None:
             if not self.ui_thinks_obs_is_set:
@@ -724,6 +751,10 @@ class Threepio(QtWidgets.QMainWindow):
 
     def handle_spectrum(self):
         obs = Spectrum()
+        self.new_observation(obs)
+
+    def handle_pulsar(self):
+        obs = Pulsar()
         self.new_observation(obs)
 
     def new_observation(self, obs: Observation):

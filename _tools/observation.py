@@ -12,6 +12,7 @@ class ObsType(Enum):
     SURVEY = 1
     SPECTRUM = 2
     UNSPECIFIED = 3
+    PULSAR = 4
 
 
 class State(Enum):
@@ -37,6 +38,17 @@ class Observation:
     appropriate action and call 'obs.next()' once to proceed into next stage. An
     observation is finished when the 'communication()' method returns 'Comm.FINISHED'.
     """
+
+    # Written next to every sample. Two decimals resolves 10 ms, which is finer
+    # than any communicate()-driven data rate; modes that record at the DAQ's
+    # own rate need more (see Pulsar).
+    TIMESTAMP_FORMAT = "%.2f"
+
+    # Whether the DAQ's software filter chain should run during this
+    # observation, and whether every sample the DAQ produces is recorded
+    # (rather than one per communicate() call).
+    FILTERED = True
+    RECORDS_EVERY_SAMPLE = False
 
     def __init__(self):
         self.name = "Untitled"
@@ -269,6 +281,15 @@ class Observation:
         """
         return Comm.NO_ACTION
 
+    def record_sample(self, data_point, timestamp: float) -> None:
+        """
+        Offered every sample the DAQ produces, as it arrives, rather than once
+        per communicate() call. Only modes that record at the acquisition rate
+        (see Pulsar) do anything with it; for everyone else recording happens in
+        data_logic() and this must stay a no-op or the data would be written twice.
+        """
+        pass
+
     # Helpers
 
     def write(self, string: str):
@@ -283,7 +304,7 @@ class Observation:
 
     def write_data(self, point: DataPoint):
         # print(f"{point.timestamp}, dec: {point.dec}")
-        self.write("%.2f" % point.timestamp)
+        self.write(self.TIMESTAMP_FORMAT % point.timestamp)
         self.write("%.4f" % point.dec)
         assert self.file_comp
         assert self.file_a

@@ -1059,6 +1059,7 @@
     <addaction name="actionScan"/>
     <addaction name="actionSurvey"/>
     <addaction name="actionSpectrum"/>
+    <addaction name="actionPulsar"/>
     <addaction name="separator"/>
     <addaction name="actionGetInfo"/>
    </widget>
@@ -1126,6 +1127,14 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+3</string>
+   </property>
+  </action>
+  <action name="actionPulsar">
+   <property name="text">
+    <string>New Pulsar...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+4</string>
    </property>
   </action>
   <action name="actionNormal">

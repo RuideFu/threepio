@@ -8,8 +8,11 @@ import os
 class MyPrecious:
     MAX_BUFFER_SIZE = 0
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, max_buffer_size: int | None = None):
         self.filename = filename
+        self.max_buffer_size = (
+            MyPrecious.MAX_BUFFER_SIZE if max_buffer_size is None else max_buffer_size
+        )
         self.__buffer = []
 
         self.dir = "./data/"
@@ -24,7 +27,7 @@ class MyPrecious:
 
     def write(self, val):
         self.__buffer_append(str(val))
-        if self.__buffer_size() > MyPrecious.MAX_BUFFER_SIZE:
+        if self.__buffer_size() > self.max_buffer_size:
             self.__buffer_write()
 
     def clear(self):
