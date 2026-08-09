@@ -71,7 +71,7 @@ SCAN_RATE = BASE_CLOCK_HZ / (SRATE * DECIMATION)  # ~100 Hz per channel
 
 """
 
-FILTER_TAU = 0.08  # seconds
+FILTER_TAU = 0.16  # seconds
 
 
 class FilterKind(Enum):
@@ -102,7 +102,7 @@ class FilterKind(Enum):
     BOTH = "both"
 
 
-FILTER_KIND = FilterKind.SINGLE_POLE
+FILTER_KIND = FilterKind.BOTH
 
 # Hampel parameters. The window is a trailing one -- a centered window would
 # delay every sample by half its length, which is not free on a live stripchart.
