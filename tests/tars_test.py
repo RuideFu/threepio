@@ -23,7 +23,13 @@ class FakeSerial:
     Stands in for the DI-4108. Echoes every command it is written, the way the
     real device does while it is not scanning, and returns b"" from a read it
     cannot satisfy, the way pyserial does when the port timeout expires.
+
+    With `stalling`, it also reproduces the ~1 s the real device spends applying
+    "stop" and "encode": it answers neither them nor the next few commands
+    unless the reader widens its timeout enough to wait the pause out.
     """
+
+    STALLED_COMMANDS = 3  # How many later commands a stall swallows
 
     def __init__(
         self,
@@ -34,6 +40,7 @@ class FakeSerial:
         preload=b"",
         drop=(),
         eol="\r",
+        stalling=False,
     ):
         self.device = device
         self.timeout = timeout
@@ -41,7 +48,10 @@ class FakeSerial:
         self.silent = silent
         self.drop = set(drop)
         self.eol = eol
+        self.stalling = stalling
+        self.stalled = 0
         self.written = []
+        self.read_timeouts = []
         self.buffer = bytearray(preload)
 
     # Device behavior
@@ -51,9 +61,25 @@ class FakeSerial:
         self.written.append(command)
         if self.silent or command in self.drop or command == "start":
             return len(data)
+        if self.stalling and not self._answers(command):
+            return len(data)
         response = f"info 1 {self.model}" if command == "info 1" else command
         self.buffer += (response + self.eol).encode()
         return len(data)
+
+    def _answers(self, command) -> bool:
+        """Whether a stalling device is in any state to reply to `command`."""
+        if command.split()[0] in Tars.SLOW_COMMANDS:
+            if self.timeout is None or self.timeout < 1.0:
+                # Not waited on, so the echo lands in nobody's read, and the
+                # device stays busy through whatever is sent next.
+                self.stalled = self.STALLED_COMMANDS
+                return False
+            return True
+        if self.stalled:
+            self.stalled -= 1
+            return False
+        return True
 
     # pyserial surface
 
@@ -69,6 +95,7 @@ class FakeSerial:
         return chunk
 
     def read_until(self, expected=b"\n", size=None):
+        self.read_timeouts.append((self.written[-1] if self.written else None, self.timeout))
         index = self.buffer.find(expected)
         if index < 0:
             return self.read(len(self.buffer))  # Timed out mid-line
@@ -88,8 +115,12 @@ def _tars(tau=None, kind=None, **kwargs):
     serial = FakeSerial(**kwargs)
     tau = tars.FILTER_TAU if tau is None else tau
     kind = tars.FILTER_KIND if kind is None else kind
+    def open_port(device, timeout=None):
+        serial.device, serial.timeout = device, timeout
+        return serial
+
     with (
-        patch.object(tars, "MySerial", lambda device, timeout=None: serial),
+        patch.object(tars, "MySerial", open_port),
         patch.object(tars, "FILTER_TAU", tau),
         patch.object(tars, "FILTER_KIND", kind),
     ):
@@ -198,6 +229,31 @@ def test_setup_warns_when_a_range_command_is_not_confirmed():
     assert any(command in message for message in parent.warnings())
 
 
+def test_setup_waits_out_the_commands_that_stall_the_device():
+    # "stop" and "encode" take ~1 s on the real DI-4108. Reading their echo at
+    # the ordinary timeout gives up first, and everything sent behind them is
+    # swallowed -- which reads as a mute device and configures it blind.
+    daq, parent, serial = _tars(stalling=True)
+
+    assert daq.configured is True
+    assert parent.warnings() == []
+    assert _config_commands(serial) == _expected_config_commands()
+
+
+def test_only_the_stalling_commands_get_the_longer_timeout():
+    # The wide timeout is what an absent echo costs, so it stays off the
+    # commands that answer immediately.
+    _, _, serial = _tars()
+    waited = dict(serial.read_timeouts)
+
+    assert waited["stop"] == Tars.SLOW_COMMAND_TIMEOUT
+    assert waited["encode 0"] == Tars.SLOW_COMMAND_TIMEOUT
+    assert waited["info 1"] == Tars.COMMAND_TIMEOUT
+    assert waited[f"slist 0 {slist_word(0)}"] == Tars.COMMAND_TIMEOUT
+    # And the port is handed back at its normal setting.
+    assert serial.timeout == Tars.COMMAND_TIMEOUT
+
+
 def test_setup_configures_blind_when_the_device_does_not_echo():
     daq, parent, serial = _tars(silent=True)
 
@@ -268,14 +324,26 @@ def _five_volt_daq(tau=None, kind=None):
 
 
 def test_filter_alpha_follows_the_configured_scan_rate():
-    # The DI-4108 walks the whole scan list at SCAN_RATE, so each of the two
-    # channels is sampled at half that. A future edit to srate/dec/channel count
-    # that silently detunes the cutoff should fail here.
+    # srate/dec set how often the DI-4108 walks the scan list, and every channel
+    # is sampled once per walk, so the per-channel period is 1/SCAN_RATE however
+    # many channels there are. A future edit to srate/dec that silently detunes
+    # the cutoff should fail here.
     daq, _, _ = _tars(kind=tars.FilterKind.SINGLE_POLE)
-    period = 2 / (tars.BASE_CLOCK_HZ / (tars.SRATE * tars.DECIMATION))
+    period = 1 / (tars.BASE_CLOCK_HZ / (tars.SRATE * tars.DECIMATION))
 
-    assert period == pytest.approx(0.02, abs=1e-4)
+    assert period == pytest.approx(0.01, abs=1e-4)
     assert _alpha(daq) == pytest.approx(period / (tars.FILTER_TAU + period))
+
+
+def test_sample_period_is_the_scan_interval_not_the_throughput():
+    # Measured on the hardware: 99.9 scans/s with two channels in the scan list
+    # and 99.9 with four, so a wider list raises throughput, not scan rate.
+    # Scaling this by the channel count would stretch every back-dated pulsar
+    # timestamp and detune the filter by the same factor.
+    daq, _, _ = _tars()
+
+    assert daq.sample_period == pytest.approx(1 / tars.SCAN_RATE)
+    assert daq.sample_period == pytest.approx(0.01, abs=1e-4)
 
 
 def test_filter_kind_none_passes_samples_through_unchanged():

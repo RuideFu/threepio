@@ -11,7 +11,7 @@ from _tools.tars import SignalDatum
 
 
 class FakeDevice:
-    sample_period = 0.02
+    sample_period = 0.01  # The DI-4108's scan interval at the configured srate/dec
 
     def __init__(self, *readings):
         self.readings = list(readings)
@@ -89,7 +89,11 @@ def test_dataq_reading_is_kept_when_declinometer_is_silent():
 
 def test_a_batch_of_scans_is_kept_whole_with_spaced_timestamps():
     """A tick that finds several scans queued must keep them all, and must not
-    stamp them with the same RA -- at the pulsar data rate that is the signal."""
+    stamp them with the same RA -- at the pulsar data rate that is the signal.
+
+    The offsets come from the DAQ's scan interval, so overstating that interval
+    back-dates a batch past the end of the previous one and the recorded
+    timestamps stop increasing."""
     app = FakeThreepio([None], [None])
     app.tars.readings = []
 
@@ -99,7 +103,7 @@ def test_a_batch_of_scans_is_kept_whole_with_spaced_timestamps():
     )
 
     assert [point.a for point in app.data] == [1.0, 2.0, 3.0]
-    assert [point.timestamp for point in app.data] == [122.96, 122.98, 123.0]
+    assert [point.timestamp for point in app.data] == [122.98, 122.99, 123.0]
 
 
 def test_latest_declination_is_reused_on_a_later_dataq_tick():

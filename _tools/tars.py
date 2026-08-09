@@ -16,6 +16,7 @@ import random as r  # For testing
 import math
 import statistics
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 
@@ -37,16 +38,20 @@ NATIVE_DEC_PORT = "/dev/serial0"
 DAQ_MODEL = "4108"
 DEFAULT_RANGE_VOLT = 10  # Accommodates the receiver's signal above 5 V
 
-# Sample rate is a throughput on this device, not a per-channel rate: the scan
-# list is walked at SCAN_RATE, so each of N channels is sampled at SCAN_RATE/N.
+# srate/dec set how often the DI-4108 walks the whole scan list, not how much
+# data it produces per second: every channel in the list is sampled once per
+# pass, so SCAN_RATE is the per-channel rate and throughput is SCAN_RATE * N.
+# Measured on a DI-4108 with these constants: 200 samples/s with two channels in
+# the list and 400 with four, both at 99.9 scans/s. Consecutive scans are
+# therefore 1/SCAN_RATE apart no matter how many channels they carry.
 BASE_CLOCK_HZ = 60_000_000  # Input to the DI-4108's sample-rate divider
 SRATE = 1171
 DECIMATION = 512
-SCAN_RATE = BASE_CLOCK_HZ / (SRATE * DECIMATION)  # ~100 Hz across the whole scan list
+SCAN_RATE = BASE_CLOCK_HZ / (SRATE * DECIMATION)  # ~100 Hz per channel
 
 # The analog front end integrates with an RC time constant of 0.3 s, band-limiting
-# the signal to ~1/(2*pi*0.3) = 0.53 Hz before the ADC ever sees it. At ~50 Hz per
-# channel that is ~94x oversampled, so everything above the analog corner is noise
+# the signal to ~1/(2*pi*0.3) = 0.53 Hz before the ADC ever sees it. At ~100 Hz per
+# channel that is ~190x oversampled, so everything above the analog corner is noise
 # added after the capacitors (ADC quantization, cabling, ground). A single-pole IIR
 # matched to the same constant removes that noise at almost no cost in signal.
 #
@@ -101,7 +106,7 @@ FILTER_KIND = FilterKind.SINGLE_POLE
 
 # Hampel parameters. The window is a trailing one -- a centered window would
 # delay every sample by half its length, which is not free on a live stripchart.
-# 7 samples is ~140 ms at ~50 Hz per channel and tolerates up to 3 consecutive
+# 7 samples is ~70 ms at ~100 Hz per channel and tolerates up to 3 consecutive
 # bad samples; 3 sigmas passes ~99.7% of clean Gaussian data untouched.
 HAMPEL_WINDOW = 7
 HAMPEL_SIGMAS = 3.0
@@ -268,6 +273,12 @@ class Tars:
     RANGE_RATE = (50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10)
 
     COMMAND_TIMEOUT = 0.25  # seconds; bounds one blocking read for a command echo
+    # "stop" and "encode" reconfigure the acquisition engine, and the DI-4108
+    # answers neither them nor anything sent behind them until it is done --
+    # measured at 0.99-1.00 s, every time, whether or not it was scanning. At
+    # COMMAND_TIMEOUT the echo always misses, which reads as a mute device.
+    SLOW_COMMAND_TIMEOUT = 2.0
+    SLOW_COMMANDS = ("stop", "encode")
     DRAIN_TIMEOUT = 1.0  # seconds; caps how long a still-scanning device can stall setup
 
     def __init__(self, parent, device=None):
@@ -287,9 +298,10 @@ class Tars:
         ]
         self.acquiring = False
 
-        # One filter chain per channel. The per-channel period depends on how
-        # many channels share the scan list, so this has to follow self.channels.
-        self.sample_period = len(self.channels) / SCAN_RATE
+        # The interval between consecutive scans, which is also the interval
+        # between consecutive samples of any one channel: adding channels to the
+        # scan list widens each scan rather than slowing the walk.
+        self.sample_period = 1 / SCAN_RATE
         self.filters = tuple(
             make_filter(FILTER_KIND, self.sample_period) for _ in self.channels
         )
@@ -405,15 +417,38 @@ class Tars:
     def command(self, command: str) -> str | None:
         """
         Send one command and return the device's echo, or None if none arrived
-        within COMMAND_TIMEOUT. Replies may be padded with NUL bytes after the
-        terminating CR; because read_until() leaves that padding buffered, it
-        can appear at the beginning of the next reply.
+        in time. Replies may be padded with NUL bytes after the terminating CR;
+        because read_until() leaves that padding buffered, it can appear at the
+        beginning of the next reply.
+
+        A slow command gets SLOW_COMMAND_TIMEOUT; everything else gets
+        COMMAND_TIMEOUT, so an absent echo still fails fast.
         """
-        self.send(command)
-        echo = self.ser.read_until(b"\r")
+        with self._read_timeout(self._timeout_for(command)):
+            self.send(command)
+            echo = self.ser.read_until(b"\r")
         if not echo.endswith(b"\r"):
             return None
         return echo.decode(errors="replace").strip("\x00 \t\r\n")
+
+    def _timeout_for(self, command: str) -> float:
+        verb = command.split()[0] if command.split() else command
+        if verb in self.SLOW_COMMANDS:
+            return self.SLOW_COMMAND_TIMEOUT
+        return self.COMMAND_TIMEOUT
+
+    @contextmanager
+    def _read_timeout(self, timeout: float):
+        """Widen the port's read timeout for one exchange, then put it back."""
+        previous = self.ser.timeout
+        if timeout == previous:
+            yield
+            return
+        self.ser.timeout = timeout
+        try:
+            yield
+        finally:
+            self.ser.timeout = previous
 
     @staticmethod
     def _matches(echo: str | None, command: str) -> bool:
@@ -434,6 +469,10 @@ class Tars:
         Read until the device goes quiet. On startup it may still be streaming
         binary from a crashed session, in which case the "stop" echo arrives
         behind an unknown amount of sample data, so drain rather than parse.
+
+        Call this only once "stop" has been given time to take effect: the
+        device falls silent while it stops, and an empty read taken during that
+        silence would look like a settled line.
         """
         deadline = time.time() + self.DRAIN_TIMEOUT
         while time.time() < deadline:
@@ -445,16 +484,19 @@ class Tars:
             return False
 
         # "stop" echoes even mid-scan, so this works whether or not the device
-        # was left acquiring by a previous run.
-        self.send("stop")
+        # was left acquiring by a previous run. Wait for that echo rather than
+        # just firing it off: the device answers nothing for ~1 s while it
+        # stops, and every command sent into that gap is lost.
+        self.command("stop")
         self._drain()
         self.acquiring = False
 
         commands = ["ps 0"]  # Small pocketsize for responsiveness
         commands += [f"slist {i} {word}" for i, word in enumerate(self.channels)]
-        # 60,000,000/(srate * dec) = 60,000,000/(1171 * 512) = 100 Hz total, so
-        # each of the two channels is sampled at ~50 Hz. SinglePoleLowpass reads
-        # the same constants, so changing these retunes the filter with them.
+        # 60,000,000/(srate * dec) = 60,000,000/(1171 * 512) = 100 scans/s, and
+        # every channel in the scan list is sampled once per scan, so both run at
+        # ~100 Hz. SinglePoleLowpass reads the same constants, so changing these
+        # retunes the filter with them.
         commands += [f"dec {DECIMATION}", f"srate {SRATE}"]
 
         model = self.command("info 1")
@@ -465,7 +507,10 @@ class Tars:
             # -- printable ASCII pairs land in 8224..32382 counts, and an odd
             # byte count shifts every later sample for the rest of the session.
             self.parent.log("DataQ is not echoing commands; configuring blind", warning=True)
-            self.send("encode 0")
+            # Blind or not, "encode" still stalls the device for ~1 s, and the
+            # rest of the sequence would land in that gap. command() waits it
+            # out; its (absent) reply is what we are already resigned to.
+            self.command("encode 0")
             for command in commands:
                 self.send(command)
             time.sleep(0.2)
@@ -481,9 +526,10 @@ class Tars:
             )
             ok = False
 
-        # The DI-4108 applies "encode 0" but does not echo it. Some firmware
-        # revisions may echo, so accept either silence or the expected reply,
-        # while still rejecting an explicit unexpected response.
+        # The DI-4108 does echo "encode 0", but only after the ~1 s it spends
+        # applying it, and some firmware revisions may not echo at all. Accept
+        # either silence or the expected reply, while still rejecting an
+        # explicit unexpected response.
         encode_echo = self.command("encode 0")
         if encode_echo is not None and not self._matches(encode_echo, "encode 0"):
             self.parent.log(

@@ -14,13 +14,13 @@ class Pulsar(Scan):
         recorded samples are exactly what the ADC produced, and
       * the data phase records every sample Tars pulls off the serial buffer
         instead of one per communicate() call, so the data rate is the DAQ's
-        (~50 Hz per channel) rather than the few-Hz rate a scan uses.
+        (~100 Hz per channel) rather than the few-Hz rate a scan uses.
 
     Calibration and background still go through communicate() at cal_freq,
     exactly as in a scan: those phases measure a level, not a waveform.
     """
 
-    # ~50 Hz samples are 20 ms apart, which two decimals of a second cannot
+    # ~100 Hz samples are 10 ms apart, which two decimals of a second cannot
     # resolve -- consecutive samples would be written with the same timestamp.
     TIMESTAMP_FORMAT = "%.4f"
 
