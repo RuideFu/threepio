@@ -356,9 +356,6 @@ class Threepio(QtWidgets.QMainWindow):
             self.obs.next()
         elif transmission is Comm.NO_ACTION:
             pass
-        
-        if should_beep:
-            self.beep(message="update_data")
 
         if should_beep:
             self.beep(message="update_data")

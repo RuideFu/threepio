@@ -48,7 +48,7 @@ class Pulsar(Scan):
         return Comm.NO_ACTION
 
     def record_sample(self, data_point, timestamp: float) -> None:
-        # Gate on exactly what the DATA branch of _communicate_state() gates on,
+        # Gate on exactly what the DATA branch of communicate() gates on,
         # since this bypasses that branch: samples before the scheduled start or
         # after the scheduled end belong to no phase and must not be recorded.
         if self.state is not State.DATA:
